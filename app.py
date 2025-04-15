@@ -2,10 +2,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
-from preprocessing import preprocess_data
-from randomforest import train_and_save_model, load_and_predict
+import joblib
+from preprocessing import preprocess_data 
+from randomforest import train_and_save_model, load_and_predict  
 from isolationforest import detect_anomalies, train_isolation_forest
-from randomforest import train_xgboost
+from xgboost import XGBClassifier  
 
 app = Flask(__name__)
 CORS(app)
@@ -32,18 +33,10 @@ def train_rf():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/train/xgboost', methods=['POST'])
-def train_xgb():
-    try:
-        result = train_xgboost()
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/train/isolationforest', methods=['POST'])
 def train_iso():
     try:
-        result = train_isolation_forest()
+        result = train_isolation_forest()  
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -52,8 +45,19 @@ def train_iso():
 def predict_rf():
     try:
         data = request.get_json()
-        prediction = load_and_predict(data)
+        prediction = load_and_predict(data)  
         return jsonify({'prediction': int(prediction)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/predict/xgboost', methods=['POST'])
+def predict_xgb():
+    try:
+        data = request.get_json()
+        model = joblib.load('xgboost_model.pkl')  
+        X = pd.DataFrame(data)  
+        y_pred = model.predict(X) 
+        return jsonify({'prediction': int(y_pred[0])})  
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -61,7 +65,8 @@ def predict_rf():
 def detect():
     try:
         data = request.get_json()
-        result = detect_anomalies(data)
+        df = pd.DataFrame(data) 
+        result = detect_anomalies(df) 
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
