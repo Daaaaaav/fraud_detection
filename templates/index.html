@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auto Load Dataset</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <h1>📊 Fraud Dataset Preview</h1>
+
+  <button onclick="loadData()">🔁 Jalankan Preprocessing</button>
+  <table id="data-table">
+    <thead id="table-head"></thead>
+    <tbody id="table-body"></tbody>
+  </table>  
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+
+  <h2>🧠 Train Model</h2>
+  <button onclick="trainRF()">Train Random Forest</button>
+  <pre id="trainRFResult"></pre>
+
+  <button onclick="trainISO()">Train Isolation Forest</button>
+  <pre id="trainISOResult"></pre>
+
+  <h2>🔍 Evaluasi Model</h2>
+  <button onclick="evaluateRF()">Evaluasi Random Forest</button>
+  <pre id="rfEvalResult"></pre>
+  
+  <button onclick="evaluateISO()">Evaluasi Isolation Forest</button>
+  <pre id="isoEvalResult"></pre>
+  
+  <table id="model-eval-table">
+    <thead id="model-eval-head"></thead>
+    <tbody id="model-eval-body"></tbody>
+  </table>
+  
+
+</body>
+</html>

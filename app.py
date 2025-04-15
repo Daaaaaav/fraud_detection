@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
@@ -13,15 +13,17 @@ CORS(app)
 
 @app.route('/')
 def index():
-    return 'Fraud Detection API is running.'
+    return render_template('index.html')
 
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
     try:
         result = preprocess_data()
+        print(result) 
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/train/randomforest', methods=['POST'])
 def train_rf():
@@ -41,14 +43,39 @@ def train_iso():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/predict/randomforest', methods=['POST'])
-def predict_rf():
+@app.route('/predict/randomforest/all', methods=['GET'])
+def predict_rf_all():
     try:
-        data = request.get_json()
-        prediction = load_and_predict(data)  
-        return jsonify({'prediction': int(prediction)})
+        df = pd.read_csv('creditcard.csv')  # atau pakai path absolut
+        X = df.drop(columns=['Class'])
+        model = joblib.load('random_forest_model.pkl')
+        predictions = model.predict(X)
+
+        # Gabungkan hasil prediksi dengan data asli (ambil sebagian kalau terlalu besar)
+        result = X.copy()
+        result['Prediction'] = predictions
+        result['Actual'] = df['Class']
+
+        return jsonify(result.head(100).to_dict(orient='records'))  # hanya 100 baris untuk efisiensi
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/predict/isolationforest/all', methods=['GET'])
+def predict_iso_all():
+    try:
+        df = pd.read_csv('creditcard.csv')
+        X = df.drop(columns=['Class'])
+        model = joblib.load('isolation_forest_model.pkl')
+        predictions = model.predict(X)
+
+        result = X.copy()
+        result['Anomaly'] = predictions
+        result['Actual'] = df['Class']
+
+        return jsonify(result.head(100).to_dict(orient='records'))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/predict/xgboost', methods=['POST'])
 def predict_xgb():
@@ -72,4 +99,4 @@ def detect():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
