@@ -1,6 +1,5 @@
 // Show loading indicator
 function startLoading() {
-  console.log('Starting loading...');
   const loadingBar = document.getElementById("loading-bar");
   loadingBar.style.width = "0%";
   loadingBar.style.display = "block";
@@ -11,7 +10,6 @@ function startLoading() {
 
 // Hide loading indicator
 function stopLoading() {
-  console.log('Stopping loading...');
   const loadingBar = document.getElementById("loading-bar");
   setTimeout(() => {
     loadingBar.style.display = "none";
@@ -19,11 +17,10 @@ function stopLoading() {
   }, 400);
 }
 
-// Load data (dataset tab)
+// Load dataset
 async function loadData() {
   const tableHead = document.getElementById('table-head');
   const tableBody = document.getElementById('table-body');
-
   startLoading();
   try {
     const response = await fetch('/preprocess', { method: 'POST' });
@@ -31,11 +28,7 @@ async function loadData() {
 
     if (result.sample && Array.isArray(result.sample)) {
       const keys = Object.keys(result.sample[0]);
-
-      // Render Header
       tableHead.innerHTML = '<tr>' + keys.map(k => `<th>${k}</th>`).join('') + '</tr>';
-
-      // Render Rows
       tableBody.innerHTML = result.sample.map(row =>
         '<tr>' + keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>'
       ).join('');
@@ -45,7 +38,7 @@ async function loadData() {
 
     console.log('Preprocessing Info:', result.info);
   } catch (error) {
-    console.error('Gagal mengambil data:', error);
+    console.error('Error loading data:', error);
     tableBody.innerHTML = '<tr><td colspan="100%">Terjadi kesalahan saat memuat data.</td></tr>';
   } finally {
     stopLoading();
@@ -61,10 +54,26 @@ async function trainRF() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'rf_model' })
     });
+
     const data = await res.json();
+
     document.getElementById('trainRFResult').textContent = JSON.stringify(data, null, 2);
-    showToast(data.message);
-    updateChartWithStats(data); 
+
+    // Append visual-friendly metrics (You must add a <pre id="rf-metrics"> block to HTML)
+    if (document.getElementById('rf-metrics')) {
+      document.getElementById('rf-metrics').textContent = `
+Model: ${data.model || "Random Forest"}
+Accuracy: ${(data.accuracy || 0).toFixed(2)}%
+Precision: ${(data.precision || 0).toFixed(2)}
+Recall: ${(data.recall || 0).toFixed(2)}
+F1 Score: ${(data.f1_score || 0).toFixed(2)}
+Train Samples: ${data.train_samples}
+Test Samples: ${data.test_samples}
+      `.trim();
+    }
+
+    showToast(data.message || "Random Forest trained.");
+    updateChartWithStats(data);
   } catch (err) {
     console.error("Error training RF:", err);
     showToast("Failed to train Random Forest model.");
@@ -73,16 +82,16 @@ async function trainRF() {
   }
 }
 
-
 // Train Isolation Forest
 async function trainISO() {
   startLoading();
   try {
     const res = await fetch('/train/isolationforest', { method: 'POST' });
     const data = await res.json();
+
     document.getElementById('trainISOResult').textContent = JSON.stringify(data, null, 2);
     showToast(data.message);
-    updateChartWithStats(data); 
+    updateChartWithStats(data);
   } catch (err) {
     console.error("Error training ISO:", err);
     showToast("Failed to train Isolation Forest model.");
@@ -91,15 +100,23 @@ async function trainISO() {
   }
 }
 
-// Evaluate Random Forest
 async function evaluateRF() {
   startLoading();
   try {
     const res = await fetch('/predict/randomforest/all');
     const data = await res.json();
 
-    renderModelTable(data, 'model-eval-head', 'model-eval-body');
-    document.getElementById('rfEvalResult').textContent = 'Random Forest evaluated on 100 samples.';
+    if (data && data.metrics) {
+      // Render evaluation table with model data
+      renderModelTable(data.metrics, 'model-eval-head', 'model-eval-body');
+
+      // Show results for Random Forest
+      document.getElementById('rfEvalResult').textContent = 'Random Forest evaluated on 100 samples.';
+      updateChartWithStats(data.metrics); // Ensure the chart updates with the metrics data
+    } else {
+      document.getElementById('rfEvalResult').textContent = 'No evaluation data available for Random Forest.';
+      showToast("No evaluation data available.");
+    }
   } catch (err) {
     console.error("Error evaluating RF:", err);
     showToast("Failed to evaluate Random Forest.");
@@ -125,7 +142,7 @@ async function evaluateISO() {
   }
 }
 
-// Render model evaluation table
+/// Render model evaluation table
 function renderModelTable(data, headId, bodyId) {
   const head = document.getElementById(headId);
   const body = document.getElementById(bodyId);
@@ -135,13 +152,18 @@ function renderModelTable(data, headId, bodyId) {
     return;
   }
 
+  // Get the keys (column names) from the first row of data
   const keys = Object.keys(data[0]);
   head.innerHTML = '<tr>' + keys.map(k => `<th>${k}</th>`).join('') + '</tr>';
-  body.innerHTML = data.map(row => '<tr>' +
-    keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>').join('');
+
+  // Render rows with data
+  body.innerHTML = data.map(row =>
+    '<tr>' + keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>'
+  ).join('');
 }
 
-// Toast notification
+
+// Toast message
 function showToast(message) {
   const toastContainer = document.createElement('div');
   toastContainer.className = 'toast-container';
@@ -158,16 +180,15 @@ function showToast(message) {
   }, 3000);
 }
 
-// DOM Content loaded
+// Tab + theme logic
 document.addEventListener("DOMContentLoaded", () => {
   const tabButtons = document.querySelectorAll(".tab-button");
   const tabContents = document.querySelectorAll(".tab-content");
   const toggleInput = document.querySelector("#theme-toggle");
 
   function setActiveTab(tabName) {
-    console.log(`Setting active tab: ${tabName}`);
-    tabButtons.forEach((btn) => btn.classList.remove("active"));
-    tabContents.forEach((tab) => tab.classList.remove("active"));
+    tabButtons.forEach(btn => btn.classList.remove("active"));
+    tabContents.forEach(tab => tab.classList.remove("active"));
 
     const targetBtn = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
     const targetTab = document.getElementById(tabName);
@@ -178,10 +199,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     startLoading();
-
-    // If dataset tab, trigger data loading
     if (tabName === "dataset") {
-      loadData(); // will stop loading when done
+      loadData();
     } else {
       setTimeout(stopLoading, 1000);
     }
@@ -190,56 +209,59 @@ document.addEventListener("DOMContentLoaded", () => {
   tabButtons.forEach((btn) => {
     btn.dataset.tab = btn.textContent.toLowerCase();
     btn.addEventListener("click", () => {
-      const tabName = btn.dataset.tab;
-      setActiveTab(tabName);
+      setActiveTab(btn.dataset.tab);
     });
   });
 
   toggleInput.addEventListener("change", () => {
-    console.log('Toggling dark mode');
     document.body.classList.toggle("dark");
     showToast("Toggled dark mode");
   });
 
-  // Default tab
+  // Initialize default tab
   setActiveTab("dataset");
-});
 
-
-var myChart = new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
-    datasets: [{
-      label: 'Model Performance',
-      data: [0, 0, 0, 0],
-      backgroundColor: 'rgba(75, 192, 192, 0.6)',
-      borderColor: 'rgba(75, 192, 192, 1)',
-      borderWidth: 1
-    }]
-  },
-  options: {
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 1.0,
-        ticks: {
-          stepSize: 0.1
+  // Initialize Chart
+  const ctx = document.getElementById('performanceChart');
+  if (ctx) {
+    window.myChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
+        datasets: [{
+          label: 'Model Performance',
+          data: [0, 0, 0, 0],
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 1.0,
+            ticks: {
+              stepSize: 0.1
+            }
+          }
         }
       }
-    }
+    });
   }
 });
 
-
+// Chart update
 function updateChartWithStats(stats) {
-  myChart.data.labels = ['Accuracy', 'Precision', 'Recall', 'F1 Score'];
-  myChart.data.datasets[0].label = 'Model Performance';
-  myChart.data.datasets[0].data = [
+  if (!window.myChart) return;
+
+  const dataset = window.myChart.data.datasets[0];
+  dataset.data = [
     stats.accuracy ?? 0,
     stats.precision ?? 0,
     stats.recall ?? 0,
     stats.f1_score ?? 0
   ];
-  myChart.update();
+
+  window.myChart.update();
 }

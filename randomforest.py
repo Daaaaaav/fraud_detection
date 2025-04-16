@@ -12,12 +12,13 @@ def train_and_save_model(model_name='random_forest_model'):
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
-    joblib.dump(clf, f'{model_name}.pkl')
+    joblib.dump(clf, f'{'random_forest.pkl'}')
 
     y_pred = clf.predict(X_test)
 
     metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
+        'model': 'Random Forest',
+        'accuracy': accuracy_score(y_test, y_pred) * 100,  # as a percentage
         'precision': precision_score(y_test, y_pred, zero_division=0),
         'recall': recall_score(y_test, y_pred, zero_division=0),
         'f1_score': f1_score(y_test, y_pred, zero_division=0),

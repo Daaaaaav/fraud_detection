@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,13 +30,11 @@
       <div class="card">
         <h2>Dataset Preview</h2>
         <button class="btn" onclick="loadData()">Load Dataset</button>
-        <div id="loading-bar"></div>
         <table>
           <thead id="table-head"></thead>
           <tbody id="table-body"></tbody>
         </table>
       </div>
-      
     </section>
 
     <section id="train" class="tab-content">
@@ -47,6 +44,11 @@
         <button onclick="trainISO()" class="btn">Isolation Forest</button>
         <pre id="trainRFResult" class="output-box"></pre>
         <pre id="trainISOResult" class="output-box"></pre>
+      </div>
+
+      <div class="card">
+        <h3>Random Forest Metrics</h3>
+        <pre id="rf-metrics">No results yet.</pre>
       </div>
     </section>
 
@@ -66,8 +68,8 @@
 
     <section id="charts" class="tab-content">
       <div class="card">
-        <h2>Visualization</h2>
-        <canvas id="chartCanvas"></canvas>
+        <h2>Model Performance Chart</h2>
+        <canvas id="performanceChart" width="400" height="200"></canvas>
       </div>
     </section>
   </main>
