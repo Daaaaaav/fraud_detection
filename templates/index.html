@@ -1,40 +1,79 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Auto Load Dataset</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fraud Detection Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>📊 Fraud Dataset Preview</h1>
+  <header>
+    <h1>Fraud Detection Dashboard</h1>
+    <label class="switch">
+      <input type="checkbox" id="theme-toggle" />
+      <span class="slider"></span>
+    </label>
+  </header>
 
-  <button onclick="loadData()">🔁 Jalankan Preprocessing</button>
-  <table id="data-table">
-    <thead id="table-head"></thead>
-    <tbody id="table-body"></tbody>
-  </table>  
+  <nav class="tabs">
+    <button class="tab-button active" data-tab="dataset">Dataset</button>
+    <button class="tab-button" data-tab="train">Train</button>
+    <button class="tab-button" data-tab="evaluate">Evaluate</button>
+    <button class="tab-button" data-tab="charts">Charts</button>
+  </nav>  
+
+  <div id="loading-bar"></div>
+
+  <main>
+    <section id="dataset" class="tab-content active">
+      <div class="card">
+        <h2>Dataset Preview</h2>
+        <button class="btn" onclick="loadData()">Load Dataset</button>
+        <div id="loading-bar"></div>
+        <table>
+          <thead id="table-head"></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      
+    </section>
+
+    <section id="train" class="tab-content">
+      <div class="card">
+        <h2>Train Models</h2>
+        <button onclick="trainRF()" class="btn">Random Forest</button>
+        <button onclick="trainISO()" class="btn">Isolation Forest</button>
+        <pre id="trainRFResult" class="output-box"></pre>
+        <pre id="trainISOResult" class="output-box"></pre>
+      </div>
+    </section>
+
+    <section id="evaluate" class="tab-content">
+      <div class="card">
+        <h2>Evaluate Models</h2>
+        <button onclick="evaluateRF()" class="btn">Random Forest</button>
+        <button onclick="evaluateISO()" class="btn">Isolation Forest</button>
+        <pre id="rfEvalResult" class="output-box"></pre>
+        <pre id="isoEvalResult" class="output-box"></pre>
+        <table id="model-eval-table">
+          <thead id="model-eval-head"></thead>
+          <tbody id="model-eval-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="charts" class="tab-content">
+      <div class="card">
+        <h2>Visualization</h2>
+        <canvas id="chartCanvas"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
   <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-
-  <h2>🧠 Train Model</h2>
-  <button onclick="trainRF()">Train Random Forest</button>
-  <pre id="trainRFResult"></pre>
-
-  <button onclick="trainISO()">Train Isolation Forest</button>
-  <pre id="trainISOResult"></pre>
-
-  <h2>🔍 Evaluasi Model</h2>
-  <button onclick="evaluateRF()">Evaluasi Random Forest</button>
-  <pre id="rfEvalResult"></pre>
-  
-  <button onclick="evaluateISO()">Evaluasi Isolation Forest</button>
-  <pre id="isoEvalResult"></pre>
-  
-  <table id="model-eval-table">
-    <thead id="model-eval-head"></thead>
-    <tbody id="model-eval-body"></tbody>
-  </table>
-  
-
 </body>
 </html>
