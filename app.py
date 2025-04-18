@@ -35,7 +35,7 @@ def train_rf():
     try:
         data = request.get_json(force=True)
         logging.info(f'Received data for /train/randomforest: {data}')
-        name = data.get('name', 'random_forest_model')
+        name = data.get('name', 'rf_model')
         result = train_and_save_model(name)
         logging.info(f'Random Forest model training completed: {result}')
         return jsonify(result)
@@ -57,21 +57,29 @@ def train_iso():
 @app.route('/predict/randomforest/all', methods=['GET'])
 def predict_rf_all():
     try:
-        logging.info('Received request for /predict/randomforest/all')
+        model_path = request.args.get('model', 'rf_model.pkl')
+        logging.info(f"Loading model from {model_path}")
+        model = joblib.load(model_path)
+
+        logging.info("Loading dataset")
         df = pd.read_csv('creditcard.csv')
+        logging.debug(f"Dataset columns: {df.columns.tolist()}")
+
+        if 'Class' not in df.columns:
+            raise ValueError("Column 'Class' not found in the dataset.")
+
         X = df.drop(columns=['Class'])
-        model = joblib.load('random_forest_model.pkl')
         predictions = model.predict(X)
 
         result = X.copy()
         result['Prediction'] = predictions
         result['Actual'] = df['Class']
 
-        logging.debug(f'Random Forest predictions: {result.head(5)}')
         return jsonify(result.head(100).to_dict(orient='records'))
     except Exception as e:
-        logging.error(f'Error occurred in /predict/randomforest/all: {e}')
+        logging.exception("Error during /predict/randomforest/all")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/predict/isolationforest/all', methods=['GET'])
 def predict_iso_all():
