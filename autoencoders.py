@@ -58,7 +58,7 @@ history = autoencoder.fit(
 )
 
 autoencoder.load_weights(checkpoint_path)
-print("✅ Loaded saved model:", checkpoint_path)
+print("Loaded saved model:", checkpoint_path)
 
 reconstructions = autoencoder.predict(X_test)
 mse = np.mean(np.power(X_test - reconstructions, 2), axis=1)
@@ -73,12 +73,12 @@ f1_scores = np.divide(2 * (precisions[:-1] * recalls[:-1]),
 best_threshold = thresholds[np.argmax(f1_scores)]
 best_f1 = np.max(f1_scores)
 
-print(f"🔥 Best F1 Threshold: {best_threshold:.4f} | Best F1 Score: {best_f1:.4f}")
+print(f"Best F1 Threshold: {best_threshold:.4f} | Best F1 Score: {best_f1:.4f}")
 
 predictions = (mse > best_threshold).astype(int)
 
-print("\n🔍 Confusion Matrix:\n", confusion_matrix(y_test, predictions))
-print("\n🧾 Classification Report:\n", classification_report(y_test, predictions, digits=4))
+print("\n Confusion Matrix:\n", confusion_matrix(y_test, predictions))
+print("\n Classification Report:\n", classification_report(y_test, predictions, digits=4))
 
 plt.plot(history.history["loss"], label="Train Loss")
 plt.plot(history.history["val_loss"], label="Val Loss")

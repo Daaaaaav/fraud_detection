@@ -7,7 +7,8 @@ import joblib
 from preprocessing import preprocess_data 
 from randomforest import train_and_save_model, load_and_predict  
 from isolationforest import detect_anomalies, train_isolation_forest
-from xgboost import XGBClassifier  
+from xgboost import XGBClassifier
+from autoencoder_backend import train_autoencoder_model, predict_autoencoder_anomalies
 
 app = Flask(__name__)
 CORS(app)
@@ -98,6 +99,28 @@ def predict_iso_all():
         return jsonify(result.head(100).to_dict(orient='records'))
     except Exception as e:
         logging.error(f'Error occurred in /predict/isolationforest/all: {e}')
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/train/autoencoder', methods=['POST'])
+def train_autoencoder():
+    try:
+        logging.info('Received request for /train/autoencoder')
+        result = train_autoencoder_model()
+        logging.info(f'Autoencoder training complete: {result}')
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f'Error occurred in /train/autoencoder: {e}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/predict/autoencoder/all', methods=['GET'])
+def predict_auto_all():
+    try:
+        logging.info('Received request for /predict/autoencoder/all')
+        result = predict_autoencoder_anomalies()
+        logging.debug(f'Autoencoder predictions: {result[:5]}')
+        return jsonify(result[:100])
+    except Exception as e:
+        logging.error(f'Error occurred in /predict/autoencoder/all: {e}')
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

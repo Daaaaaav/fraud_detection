@@ -20,6 +20,7 @@
     <button class="tab-button active" data-tab="dataset">Dataset</button>
     <button class="tab-button" data-tab="train">Train</button>
     <button class="tab-button" data-tab="evaluate">Evaluate</button>
+    <button class="tab-button" data-tab="auto">Autoencoder</button>
     <button class="tab-button" data-tab="charts">Charts</button>
   </nav>  
 
@@ -65,6 +66,16 @@
         </table>
       </div>
     </section>
+
+    
+  <section id="auto" class="tab-content" >
+    <div class="card">
+      <h2>Autoencoder</h2>
+      <button class="btn" onclick="trainAutoencoder()">Train Model</button>
+      <button class="btn" onclick="predictAutoencoder()">Predict All</button>
+      <div class="output-box" id="auto-output"></div>
+    </div>
+  </section>
 
     <section id="charts" class="tab-content">
       <div class="card">
