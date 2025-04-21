@@ -8,6 +8,7 @@ from sklearn.metrics import precision_recall_curve
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+import joblib
 import os
 
 MODEL_PATH = "best_autoencoder.h5"
@@ -21,7 +22,7 @@ def load_data():
     X_scaled = scaler.fit_transform(X)
     return X_scaled, y, scaler
 
-def train_autoencoder_model():
+def train_autoencoder():
     X_scaled, y, _ = load_data()
     X_normal = X_scaled[y == 0]
     X_train, X_val = train_test_split(X_normal, test_size=0.2, random_state=42)
@@ -39,7 +40,7 @@ def train_autoencoder_model():
     decoded = layers.Dense(input_dim, activation="linear")(decoded)
 
     autoencoder = tf.keras.Model(inputs=input_layer, outputs=decoded)
-    autoencoder.compile(optimizer="adam", loss="mse")
+    autoencoder.compile(optimizer="adam", loss="mean_squared_error")
 
     checkpoint = ModelCheckpoint(filepath=MODEL_PATH, monitor='val_loss', save_best_only=True, verbose=1)
     early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
@@ -70,24 +71,25 @@ def train_autoencoder_model():
         "best_f1_score": float(np.max(f1_scores))
     }
 
-def predict_autoencoder_anomalies():
-    X_scaled, y_true, _ = load_data()
-    if not os.path.exists(MODEL_PATH) or not os.path.exists(THRESHOLD_PATH):
-        return {"error": "Trained model or threshold not found. Please train the autoencoder first."}
-
-    best_threshold = np.load(THRESHOLD_PATH)
-    input_dim = X_scaled.shape[1]
-
-    autoencoder = tf.keras.models.load_model(MODEL_PATH, compile=False)
-    reconstructions = autoencoder.predict(X_scaled)
-    mse = np.mean(np.power(X_scaled - reconstructions, 2), axis=1)
-    predictions = (mse > best_threshold).astype(int)
-
+def predict_autoencoder():
     df = pd.read_csv("creditcard.csv")
-    X = df.drop(columns=["Class"])
-    result = X.copy()
-    result["Anomaly"] = predictions
-    result["Actual"] = y_true
-    result["Reconstruction_Error"] = mse
+    model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
+    scaler = joblib.load("models/scaler.pkl")
 
-    return result.to_dict(orient="records")
+    X = df.drop(columns=["Class"])
+    X_scaled = scaler.transform(X)
+
+    # Reconstruction
+    X_pred = model.predict(X_scaled)
+    mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
+
+    # Load threshold
+    with open("models/threshold.txt", "r") as f:
+        threshold = float(f.read())
+
+    df["MSE"] = mse
+    df["is_anomaly"] = df["MSE"] > threshold
+
+    # Return top 100 anomalies
+    result = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
+    return result
