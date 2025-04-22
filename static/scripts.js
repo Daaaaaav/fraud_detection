@@ -135,6 +135,11 @@ async function predictAutoencoder() {
     } else {
       output.textContent = `Autoencoder Prediction:\n${JSON.stringify(result, null, 2)}`;
     }
+
+    // Update chart with stats
+    if (result.stats) {
+      updateChartWithStats(result.stats);
+    }
   } catch (error) {
     console.error('Error predicting with autoencoder:', error);
     document.getElementById('auto-output').textContent = 'Failed to get predictions.';
@@ -289,7 +294,7 @@ function updateChartWithStats(data) {
 
   const label = data.model || 'Autoencoder';
   const metrics = [
-    (data.accuracy || 0) * 100,
+    data.accuracy || 0,
     data.precision || 0,
     data.recall || 0,
     data.f1_score || 0
