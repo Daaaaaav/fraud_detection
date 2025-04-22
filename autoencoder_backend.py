@@ -4,7 +4,7 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import precision_recall_curve, precision_score, recall_score, f1_score, accuracy_score
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
@@ -77,6 +77,7 @@ def predict_autoencoder():
     scaler = joblib.load("models/scaler.pkl")
 
     X = df.drop(columns=["Class"])
+    y_true = df["Class"].values
     X_scaled = scaler.transform(X)
 
     # Reconstruction
@@ -90,6 +91,22 @@ def predict_autoencoder():
     df["MSE"] = mse
     df["is_anomaly"] = df["MSE"] > threshold
 
-    # Return top 100 anomalies
-    result = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
-    return result
+    # Evaluation
+    y_pred = df["is_anomaly"].astype(int).values
+    acc = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred)
+    rec = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+
+    # Return both stats and top 100 anomalies
+    top_anomalies = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
+
+    return {
+        "anomalies": top_anomalies,
+        "stats": {
+            "accuracy": acc,
+            "precision": prec,
+            "recall": rec,
+            "f1_score": f1
+        }
+    }

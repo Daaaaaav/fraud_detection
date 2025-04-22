@@ -98,6 +98,52 @@ async function trainISO() {
   }
 }
 
+// Train Autoencoder
+async function trainAutoencoder() {
+  startLoading();
+  try {
+    const res = await fetch('/train/autoencoder', { method: 'POST' });
+    const result = await res.json();
+
+    const output = document.getElementById('auto-output');
+    output.textContent = `Autoencoder Training:\n${JSON.stringify(result, null, 2)}`;
+    showToast(result.message || "Autoencoder training completed.");
+    updateChartWithStats(result);
+  } catch (error) {
+    console.error('Error training autoencoder:', error);
+    document.getElementById('auto-output').textContent = 'Failed to train autoencoder.';
+    showToast("Training failed for Autoencoder.");
+  } finally {
+    stopLoading();
+  }
+}
+
+// Predict Autoencoder
+async function predictAutoencoder() {
+  startLoading();
+  try {
+    const res = await fetch('/predict/autoencoder/all');
+    const result = await res.json();
+    
+    console.log("Autoencoder prediction result:", result);
+    const output = document.getElementById('auto-output');
+
+    if (Array.isArray(result)) {
+      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
+    } else if (Array.isArray(result.predictions)) {
+      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+    } else {
+      output.textContent = `Autoencoder Prediction:\n${JSON.stringify(result, null, 2)}`;
+    }
+  } catch (error) {
+    console.error('Error predicting with autoencoder:', error);
+    document.getElementById('auto-output').textContent = 'Failed to get predictions.';
+    showToast("Autoencoder prediction failed.");
+  } finally {
+    stopLoading();
+  }
+}
+
 // Evaluate Random Forest
 async function evaluateRF() {
   startLoading();
@@ -130,6 +176,7 @@ async function evaluateISO() {
 
     renderModelTable(data, 'model-eval-head', 'model-eval-body');
     document.getElementById('isoEvalResult').textContent = 'Isolation Forest evaluated on 100 samples.';
+    updateChartWithStats(data);
   } catch (err) {
     console.error("Error evaluating ISO:", err);
     showToast("Failed to evaluate Isolation Forest.");
@@ -228,57 +275,47 @@ if (ctx) {
   });
 }
 
-// Chart updater
-function updateChartWithStats(stats) {
-  if (!window.myChart) return;
-  const dataset = window.myChart.data.datasets[0];
-  dataset.data = [
-    stats.accuracy ?? 0,
-    stats.precision ?? 0,
-    stats.recall ?? 0,
-    stats.f1_score ?? 0
+let performanceChartInstance = null;
+
+function updateChartWithStats(data) {
+  const canvas = document.getElementById('performanceChart');
+  const ctx = canvas.getContext('2d');
+
+  const label = data.model || 'Autoencoder';
+  const metrics = [
+    (data.accuracy || 0) * 100,
+    data.precision || 0,
+    data.recall || 0,
+    data.f1_score || 0
   ];
-  window.myChart.update();
-}
 
-// Train Autoencoder
-async function trainAutoencoder() {
-  startLoading();
-  try {
-    const res = await fetch('/train/autoencoder', { method: 'POST' });
-    const result = await res.json();
+  const chartData = {
+    labels: ['Accuracy (%)', 'Precision', 'Recall', 'F1 Score'],
+    datasets: [{
+      label: label,
+      data: metrics,
+      backgroundColor: ['#4CAF50', '#2196F3', '#FFC107', '#E91E63'],
+      borderWidth: 1
+    }]
+  };
 
-    const output = document.getElementById('auto-output');
-    output.textContent = `Autoencoder Training:\n${JSON.stringify(result, null, 2)}`;
-  } catch (error) {
-    console.error('Error training autoencoder:', error);
-    document.getElementById('auto-output').textContent = 'Failed to train autoencoder.';
-  } finally {
-    stopLoading();
-  }
-}
-
-async function predictAutoencoder() {
-  startLoading();
-  try {
-    const res = await fetch('/predict/autoencoder/all');
-    const result = await res.json();
-    
-    console.log("Autoencoder prediction result:", result);
-
-    const output = document.getElementById('auto-output');
-
-    if (Array.isArray(result)) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
-    } else if (Array.isArray(result.predictions)) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
-    } else {
-      output.textContent = `Autoencoder Prediction Response:\n${JSON.stringify(result, null, 2)}`;
+  const chartOptions = {
+    responsive: true,
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100
+      }
     }
-  } catch (error) {
-    console.error('Error predicting with autoencoder:', error);
-    document.getElementById('auto-output').textContent = 'Failed to get predictions.';
-  } finally {
-    stopLoading();
+  };
+
+  if (performanceChartInstance) {
+    performanceChartInstance.destroy();
   }
+
+  performanceChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: chartData,
+    options: chartOptions
+  });
 }
