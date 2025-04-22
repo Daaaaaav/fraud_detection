@@ -124,7 +124,7 @@ async function predictAutoencoder() {
   try {
     const res = await fetch('/predict/autoencoder/all');
     const result = await res.json();
-    
+
     console.log("Autoencoder prediction result:", result);
     const output = document.getElementById('auto-output');
 
@@ -144,17 +144,20 @@ async function predictAutoencoder() {
   }
 }
 
-// Evaluate Random Forest
 async function evaluateRF() {
   startLoading();
   try {
     const res = await fetch('/predict/randomforest/all');
     const data = await res.json();
 
-    if (data && data.metrics) {
-      renderModelTable(data.metrics, 'model-eval-head', 'model-eval-body');
+    console.log("RF Evaluation Response:", data); // <--- Added to debug
+
+    const metrics = data.metrics || (Array.isArray(data) ? data : null);
+
+    if (metrics && Array.isArray(metrics) && metrics.length > 0) {
+      renderModelTable(metrics, 'model-eval-head', 'model-eval-body');
       document.getElementById('rfEvalResult').textContent = 'Random Forest evaluated on 100 samples.';
-      updateChartWithStats(data.metrics);
+      updateChartWithStats(metrics[0]); // Assuming first row is representative
     } else {
       document.getElementById('rfEvalResult').textContent = 'No evaluation data available for Random Forest.';
       showToast("No evaluation data available.");
@@ -166,6 +169,32 @@ async function evaluateRF() {
     stopLoading();
   }
 }
+
+async function evaluateModel(endpoint, resultId, modelName) {
+  startLoading();
+  try {
+    const res = await fetch(endpoint);
+    const data = await res.json();
+
+    console.log(`${modelName} Evaluation Response:`, data);
+
+    const metrics = data.metrics || (Array.isArray(data) ? data : null);
+    if (metrics && Array.isArray(metrics) && metrics.length > 0) {
+      renderModelTable(metrics, 'model-eval-head', 'model-eval-body');
+      document.getElementById(resultId).textContent = `${modelName} evaluated on ${metrics.length} samples.`;
+      updateChartWithStats(metrics[0]);
+    } else {
+      document.getElementById(resultId).textContent = `No evaluation data available for ${modelName}.`;
+      showToast(`No evaluation data for ${modelName}.`);
+    }
+  } catch (err) {
+    console.error(`Error evaluating ${modelName}:`, err);
+    showToast(`Failed to evaluate ${modelName}.`);
+  } finally {
+    stopLoading();
+  }
+}
+
 
 // Evaluate Isolation Forest
 async function evaluateISO() {
@@ -234,51 +263,28 @@ document.querySelectorAll('.tab-button').forEach(button => {
   });
 });
 
-// Dark mode toggle
 const toggleInput = document.getElementById("toggle-input");
 if (toggleInput) {
+  if (localStorage.getItem("darkMode") === "true") {
+    document.body.classList.add("dark");
+    toggleInput.checked = true;
+  }
+
   toggleInput.addEventListener("change", () => {
     document.body.classList.toggle("dark");
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
     showToast("Toggled dark mode");
   });
 }
 
-// Initialize default tab
 setActiveTab("dataset");
 
-// Initialize Chart
-const ctx = document.getElementById('performanceChart');
-if (ctx) {
-  window.myChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
-      datasets: [{
-        label: 'Model Performance',
-        data: [0, 0, 0, 0],
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 1.0,
-          ticks: {
-            stepSize: 0.1
-          }
-        }
-      }
-    }
-  });
-}
-
+// Chart.js instance and update function
 let performanceChartInstance = null;
 
 function updateChartWithStats(data) {
   const canvas = document.getElementById('performanceChart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
   const label = data.model || 'Autoencoder';
