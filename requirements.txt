@@ -1,9 +1,10 @@
 flask
 flask-cors
+gunicorn
 pandas
 numpy
-joblib
-xgboost
-tensorflow
 scikit-learn
-gunicorn
+xgboost
+imbalanced-learn
+tensorflow
+joblib
