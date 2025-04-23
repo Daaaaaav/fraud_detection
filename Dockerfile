@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 RUN pip install --upgrade pip
+RUN pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2  # Adjust versions as needed
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
