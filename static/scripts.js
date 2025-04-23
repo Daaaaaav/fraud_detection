@@ -315,7 +315,7 @@ function updateChartWithStats(data) {
     scales: {
       y: {
         beginAtZero: true,
-        max: 100
+        max: 1
       }
     }
   };
