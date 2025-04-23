@@ -7,7 +7,7 @@ import joblib
 # Custom modules
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model
-from isolationforest import train_isolation_forest, detect_anomalies
+from isolzationforest import train_isolation_forest, detect_anomalies
 from autoencoder_backend import train_autoencoder, predict_autoencoder
 
 # Initialize Flask app

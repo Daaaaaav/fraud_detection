@@ -12,6 +12,7 @@ COPY requirements.txt .
 
 RUN pip install --upgrade pip
 RUN pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
+RUN pip install gunicorn
 
 RUN grep -v detectron2 requirements.txt > temp-requirements.txt && pip install -r temp-requirements.txt
 
