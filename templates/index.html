@@ -24,6 +24,10 @@
     <button class="tab-button" data-tab="charts">Charts</button>
   </nav>  
 
+  <div id="spinner-overlay" style="display: none;">
+    <div class="spinner"></div>
+  </div>  
+
   <div id="loading-bar"></div>
 
   <main>
@@ -46,12 +50,7 @@
         <pre id="trainRFResult" class="output-box"></pre>
         <pre id="trainISOResult" class="output-box"></pre>
       </div>
-
-      <div class="card">
-        <h3>Random Forest Metrics</h3>
-        <pre id="rf-metrics">No results yet.</pre>
-      </div>
-    </section>
+      </section>
 
     <section id="evaluate" class="tab-content">
       <div class="card">
@@ -77,13 +76,24 @@
     </div>
   </section>
 
-    <section id="charts" class="tab-content">
+  <section id="charts" class="tab-content">
+    <h2>Model Performance Comparison</h2>
+    <div id="chart-container" style="display: flex; flex-wrap: wrap; gap: 16px;">
       <div class="card">
-        <h2>Model Performance Chart</h2>
-        <canvas id="performanceChart" width="400" height="200"></canvas>
+        <h3>Random Forest</h3>
+        <canvas id="chart-rf" width="400" height="200"></canvas>
       </div>
-    </section>
-  </main>
+      <div class="card">
+        <h3>Isolation Forest</h3>
+        <canvas id="chart-iso" width="400" height="200"></canvas>
+      </div>
+      <div class="card">
+        <h3>Autoencoder</h3>
+        <canvas id="chart-auto" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </section>
+  
 
   <div id="toast" class="toast hidden"></div>
 

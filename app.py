@@ -4,17 +4,14 @@ from flask_cors import CORS
 import pandas as pd
 import joblib
 
-# Custom modules
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model
-from isolzationforest import train_isolation_forest, detect_anomalies
+from isolationforest import train_isolation_forest, detect_anomalies
 from autoencoder_backend import train_autoencoder, predict_autoencoder
 
-# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
 
@@ -69,7 +66,6 @@ def predict_rf_all():
         logging.info(f"Loading Random Forest model from {model_path}")
         model = joblib.load(model_path)
 
-        logging.info("Loading dataset...")
         df = pd.read_csv('creditcard.csv')
         if 'Class' not in df.columns:
             raise ValueError("Missing 'Class' column in dataset.")
@@ -77,12 +73,26 @@ def predict_rf_all():
         X = df.drop(columns=['Class'])
         predictions = model.predict(X)
 
-        result = X.copy()
-        result['Prediction'] = predictions
-        result['Actual'] = df['Class']
-        logging.debug("Random Forest predictions done.")
+        result_df = X.copy()
+        result_df['Prediction'] = predictions
+        result_df['Prediction_Label'] = result_df['Prediction'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
+        result_df['Actual'] = df['Class']
+        result_df['Actual_Label'] = result_df['Actual'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
 
-        return jsonify(result.head(100).to_dict(orient='records'))
+        fraud_count = sum(predictions)
+        total = len(predictions)
+        stats = {
+            'total': total,
+            'fraudulent': int(fraud_count),
+            'non_fraudulent': int(total - fraud_count),
+            'fraud_rate': round((fraud_count / total) * 100, 2)
+        }
+
+        logging.debug("Random Forest predictions done.")
+        return jsonify({
+            'predictions': result_df.head(100).to_dict(orient='records'),
+            'stats': stats
+        })
     except Exception as e:
         logging.exception("Error in /predict/randomforest/all")
         return jsonify({'error': str(e)}), 500
@@ -100,12 +110,26 @@ def predict_iso_all():
         model = joblib.load('isolation_forest_model.pkl')
         predictions = model.predict(X)
 
-        result = X.copy()
-        result['Anomaly'] = predictions
-        result['Actual'] = df['Class']
-        logging.debug("Isolation Forest predictions complete.")
+        result_df = X.copy()
+        result_df['Anomaly'] = predictions
+        result_df['Anomaly_Label'] = result_df['Anomaly'].map({1: 'Normal', -1: 'Anomaly (Possible Fraud)'})
+        result_df['Actual'] = df['Class']
+        result_df['Actual_Label'] = result_df['Actual'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
 
-        return jsonify(result.head(100).to_dict(orient='records'))
+        anomaly_count = sum(predictions == -1)
+        total = len(predictions)
+        stats = {
+            'total': total,
+            'anomalies_detected': int(anomaly_count),
+            'normal': int(total - anomaly_count),
+            'anomaly_rate': round((anomaly_count / total) * 100, 2)
+        }
+
+        logging.debug("Isolation Forest predictions complete.")
+        return jsonify({
+            'predictions': result_df.head(100).to_dict(orient='records'),
+            'stats': stats
+        })
     except Exception as e:
         logging.exception("Error in /predict/isolationforest/all")
         return jsonify({'error': str(e)}), 500
@@ -127,9 +151,28 @@ def train_autoencoder_route():
 def predict_autoencoder_route():
     try:
         logging.info("Predicting with Autoencoder...")
-        results = predict_autoencoder()
+        df, predictions, mse_threshold = predict_autoencoder()
+
+        result_df = df.copy()
+        result_df['Autoencoder_Anomaly'] = predictions
+        result_df['Anomaly_Label'] = result_df['Autoencoder_Anomaly'].map({0: 'Normal', 1: 'Anomaly (Possible Fraud)'})
+        result_df['Actual_Label'] = result_df['Class'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
+
+        anomaly_count = sum(predictions)
+        total = len(predictions)
+        stats = {
+            'total': total,
+            'anomalies_detected': int(anomaly_count),
+            'normal': int(total - anomaly_count),
+            'anomaly_rate': round((anomaly_count / total) * 100, 2),
+            'mse_threshold': mse_threshold
+        }
+
         logging.info("Autoencoder prediction successful.")
-        return jsonify(results)
+        return jsonify({
+            'predictions': result_df.head(100).to_dict(orient='records'),
+            'stats': stats
+        })
     except Exception as e:
         logging.error(f"Autoencoder prediction error: {e}")
         return jsonify({"error": str(e)}), 500

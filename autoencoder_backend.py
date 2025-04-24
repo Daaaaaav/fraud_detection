@@ -89,17 +89,19 @@ def predict_autoencoder():
         threshold = float(f.read())
 
     df["MSE"] = mse
-    df["is_anomaly"] = df["MSE"] > threshold
+    df["is_fraud"] = df["MSE"] > threshold
+
 
     # Evaluation
-    y_pred = df["is_anomaly"].astype(int).values
+    y_pred = df["is_fraud"].astype(int).values
     acc = accuracy_score(y_true, y_pred)
     prec = precision_score(y_true, y_pred)
     rec = recall_score(y_true, y_pred)
     f1 = f1_score(y_true, y_pred)
 
     # Return both stats and top 100 anomalies
-    top_anomalies = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
+    top_anomalies = df[df["is_fraud"] == True].head(100).to_dict(orient="records")
+
 
     return {
         "anomalies": top_anomalies,

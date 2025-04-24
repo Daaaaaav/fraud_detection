@@ -1,4 +1,4 @@
-// Show loading indicator
+
 function startLoading() {
   const loadingBar = document.getElementById("loading-bar");
   loadingBar.style.width = "0%";
@@ -8,7 +8,6 @@ function startLoading() {
   }, 50);
 }
 
-// Hide loading indicator
 function stopLoading() {
   const loadingBar = document.getElementById("loading-bar");
   setTimeout(() => {
@@ -17,7 +16,7 @@ function stopLoading() {
   }, 400);
 }
 
-// Load dataset
+
 async function loadData() {
   const tableHead = document.getElementById('table-head');
   const tableBody = document.getElementById('table-body');
@@ -45,7 +44,6 @@ async function loadData() {
   }
 }
 
-// Train Random Forest
 async function trainRF() {
   startLoading();
   try {
@@ -80,7 +78,6 @@ async function trainRF() {
   }
 }
 
-// Train Isolation Forest
 async function trainISO() {
   startLoading();
   try {
@@ -98,7 +95,6 @@ async function trainISO() {
   }
 }
 
-// Train Autoencoder
 async function trainAutoencoder() {
   startLoading();
   try {
@@ -118,7 +114,6 @@ async function trainAutoencoder() {
   }
 }
 
-// Predict Autoencoder
 async function predictAutoencoder() {
   startLoading();
   try {
@@ -136,7 +131,6 @@ async function predictAutoencoder() {
       output.textContent = `Autoencoder Prediction:\n${JSON.stringify(result, null, 2)}`;
     }
 
-    // Update chart with stats
     if (result.stats) {
       updateChartWithStats(result.stats);
     }
@@ -150,29 +144,11 @@ async function predictAutoencoder() {
 }
 
 async function evaluateRF() {
-  startLoading();
-  try {
-    const res = await fetch('/predict/randomforest/all');
-    const data = await res.json();
+  await evaluateModel('/predict/randomforest/all', 'rfEvalResult', 'Random Forest');
+}
 
-    console.log("RF Evaluation Response:", data); // <--- Added to debug
-
-    const metrics = data.metrics || (Array.isArray(data) ? data : null);
-
-    if (metrics && Array.isArray(metrics) && metrics.length > 0) {
-      renderModelTable(metrics, 'model-eval-head', 'model-eval-body');
-      document.getElementById('rfEvalResult').textContent = 'Random Forest evaluated on 100 samples.';
-      updateChartWithStats(metrics[0]); // Assuming first row is representative
-    } else {
-      document.getElementById('rfEvalResult').textContent = 'No evaluation data available for Random Forest.';
-      showToast("No evaluation data available.");
-    }
-  } catch (err) {
-    console.error("Error evaluating RF:", err);
-    showToast("Failed to evaluate Random Forest.");
-  } finally {
-    stopLoading();
-  }
+async function evaluateISO() {
+  await evaluateModel('/predict/isolationforest/all', 'isoEvalResult', 'Isolation Forest');
 }
 
 async function evaluateModel(endpoint, resultId, modelName) {
@@ -182,8 +158,8 @@ async function evaluateModel(endpoint, resultId, modelName) {
     const data = await res.json();
 
     console.log(`${modelName} Evaluation Response:`, data);
-
     const metrics = data.metrics || (Array.isArray(data) ? data : null);
+
     if (metrics && Array.isArray(metrics) && metrics.length > 0) {
       renderModelTable(metrics, 'model-eval-head', 'model-eval-body');
       document.getElementById(resultId).textContent = `${modelName} evaluated on ${metrics.length} samples.`;
@@ -200,26 +176,6 @@ async function evaluateModel(endpoint, resultId, modelName) {
   }
 }
 
-
-// Evaluate Isolation Forest
-async function evaluateISO() {
-  startLoading();
-  try {
-    const res = await fetch('/predict/isolationforest/all');
-    const data = await res.json();
-
-    renderModelTable(data, 'model-eval-head', 'model-eval-body');
-    document.getElementById('isoEvalResult').textContent = 'Isolation Forest evaluated on 100 samples.';
-    updateChartWithStats(data);
-  } catch (err) {
-    console.error("Error evaluating ISO:", err);
-    showToast("Failed to evaluate Isolation Forest.");
-  } finally {
-    stopLoading();
-  }
-}
-
-// Render model evaluation table
 function renderModelTable(data, headId, bodyId) {
   const head = document.getElementById(headId);
   const body = document.getElementById(bodyId);
@@ -236,29 +192,24 @@ function renderModelTable(data, headId, bodyId) {
   ).join('');
 }
 
-// Toast notification
 function showToast(message) {
-  const toastContainer = document.createElement('div');
-  toastContainer.className = 'toast-container';
-
-  const toastMessage = document.createElement('div');
-  toastMessage.className = 'toast-message';
-  toastMessage.textContent = message;
-
-  toastContainer.appendChild(toastMessage);
-  document.body.appendChild(toastContainer);
-
+  const toast = document.getElementById('global-toast');
+  toast.textContent = message;
+  toast.style.display = 'block';
   setTimeout(() => {
-    toastContainer.remove();
+    toast.style.display = 'none';
   }, 3000);
 }
 
-// Tab switching
 function setActiveTab(tabId) {
   document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-  document.querySelector(`.tab-button[data-tab="${tabId}"]`)?.classList.add('active');
-  document.getElementById(tabId)?.classList.add('active');
+
+  const activeButton = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+  const activeTab = document.getElementById(tabId);
+
+  if (activeButton) activeButton.classList.add('active');
+  if (activeTab) activeTab.classList.add('active');
 }
 
 document.querySelectorAll('.tab-button').forEach(button => {
@@ -284,49 +235,119 @@ if (toggleInput) {
 
 setActiveTab("dataset");
 
-// Chart.js instance and update function
-let performanceChartInstance = null;
+let charts = {
+  rf: null,
+  iso: null,
+  auto: null
+};
 
-function updateChartWithStats(data) {
-  const canvas = document.getElementById('performanceChart');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+function renderModelChart(modelKey, stats) {
+  const chartId = {
+    rf: 'chart-rf',
+    iso: 'chart-iso',
+    auto: 'chart-auto'
+  }[modelKey];
 
-  const label = data.model || 'Autoencoder';
-  const metrics = [
-    data.accuracy || 0,
-    data.precision || 0,
-    data.recall || 0,
-    data.f1_score || 0
-  ];
-
-  const chartData = {
-    labels: ['Accuracy (%)', 'Precision', 'Recall', 'F1 Score'],
+  const ctx = document.getElementById(chartId).getContext('2d');
+  const data = {
+    labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
     datasets: [{
-      label: label,
-      data: metrics,
-      backgroundColor: ['#4CAF50', '#2196F3', '#FFC107', '#E91E63'],
-      borderWidth: 1
+      label: modelKey.toUpperCase(),
+      data: [
+        stats.accuracy || 0,
+        stats.precision || 0,
+        stats.recall || 0,
+        stats.f1_score || 0
+      ],
+      backgroundColor: ['#4caf50', '#2196f3', '#ffc107', '#e91e63']
     }]
   };
 
-  const chartOptions = {
-    responsive: true,
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 1
+  if (charts[modelKey]) {
+    charts[modelKey].data = data;
+    charts[modelKey].update();
+  } else {
+    charts[modelKey] = new Chart(ctx, {
+      type: 'bar',
+      data,
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: `${modelKey.toUpperCase()} Model Metrics`
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 1
+          }
+        }
       }
-    }
-  };
-
-  if (performanceChartInstance) {
-    performanceChartInstance.destroy();
+    });
   }
-
-  performanceChartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: chartData,
-    options: chartOptions
-  });
 }
+
+function updateChartWithStats(stats) {
+  if (stats.model === 'Random Forest' || stats.model === 'rf_model') {
+    renderModelChart('rf', stats);
+  } else if (stats.model === 'Isolation Forest') {
+    renderModelChart('iso', stats);
+  } else if (stats.model === 'Autoencoder') {
+    renderModelChart('auto', stats);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Initial fade-in effect
+  document.body.classList.add("fade-in");
+
+  // Setup tab logic
+  const tabButtons = document.querySelectorAll(".tab-button");
+  const tabContents = document.querySelectorAll(".tab-content");
+
+  tabButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const target = button.getAttribute("data-target");
+
+      // Remove active and fade-in/fade-out from all
+      tabButtons.forEach(btn => btn.classList.remove("active"));
+      tabContents.forEach(content => {
+        content.classList.remove("active", "fade-in");
+        content.classList.add("fade-out");
+      });
+
+      const selectedContent = document.getElementById(target);
+      button.classList.add("active");
+
+      setTimeout(() => {
+        tabContents.forEach(content => content.classList.remove("fade-out"));
+        selectedContent.classList.add("active", "fade-in");
+      }, 100); 
+    });
+  });
+
+  const firstTab = document.querySelector(".tab-button");
+  if (firstTab) firstTab.click();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.body.classList.add("fade-in");
+
+  requestAnimationFrame(() => {
+    document.body.classList.add("loaded");
+  });
+
+  document.querySelectorAll(".tab-button").forEach(button => {
+    button.addEventListener("click", () => {
+      const targetTabId = button.dataset.tab;
+      setActiveTab(targetTabId);
+    });
+  });
+
+  setActiveTab("dataset");
+});
