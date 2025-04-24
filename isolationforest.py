@@ -8,15 +8,15 @@ def train_isolation_forest():
     data = np.load('processed_data.npz')
     X_train = data['X_train']
     X_test = data['X_test']
-    y_test = data['y_test']  # Assuming 1 = fraud, 0 = normal
+    y_test = data['y_test']  
 
     model = IsolationForest(contamination=0.01, random_state=42)
     model.fit(X_train)
     joblib.dump(model, 'isolation_forest_model.pkl')
 
-    # Predict and map for scoring
+
     y_pred = model.predict(X_test)
-    y_pred_mapped = np.where(y_pred == -1, 1, 0)  # -1 → fraud, 1 → normal
+    y_pred_mapped = np.where(y_pred == -1, 1, 0)
 
     total = len(y_pred)
     anomaly_count = np.sum(y_pred == -1)
@@ -48,8 +48,22 @@ def detect_anomalies():
     df["predicted"] = np.where(preds == -1, 1, 0)
     df["is_fraud"] = df["predicted"] == 1
 
+    # Separate the fraudulent and non-fraudulent transactions
+    fraudulent_df = df[df["is_fraud"]]
+    non_fraudulent_df = df[~df["is_fraud"]]
+
+    # Select top 50 fraudulent and top 50 non-fraudulent transactions
+    top_frauds = pd.concat([
+        fraudulent_df.head(50),  # Take top 50 fraudulent
+        non_fraudulent_df.head(50)  # Take top 50 non-fraudulent
+    ])
+
+    # Shuffle the top_frauds DataFrame to mix fraudulent and non-fraudulent rows
+    top_frauds = top_frauds.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    # Return top frauds and stats
     return {
-        "top_frauds": df[df["is_fraud"]].head(100).to_dict(orient="records"),
+        "top_frauds": top_frauds.to_dict(orient="records"),
         "stats": {
             "accuracy": accuracy_score(y_true, df["predicted"]),
             "precision": precision_score(y_true, df["predicted"], zero_division=0),
@@ -57,3 +71,4 @@ def detect_anomalies():
             "f1_score": f1_score(y_true, df["predicted"], zero_division=0)
         }
     }
+

@@ -1,4 +1,3 @@
-
 function startLoading() {
   const loadingBar = document.getElementById("loading-bar");
   loadingBar.style.width = "0%";
@@ -158,16 +157,21 @@ async function evaluateModel(endpoint, resultId, modelName) {
     const data = await res.json();
 
     console.log(`${modelName} Evaluation Response:`, data);
-    const metrics = data.metrics || (Array.isArray(data) ? data : null);
-
-    if (metrics && Array.isArray(metrics) && metrics.length > 0) {
-      renderModelTable(metrics, 'model-eval-head', 'model-eval-body');
-      document.getElementById(resultId).textContent = `${modelName} evaluated on ${metrics.length} samples.`;
-      updateChartWithStats(metrics[0]);
+    const predictions = data.predictions;
+    const stats = data.stats;
+    if (predictions && Array.isArray(predictions) && predictions.length > 0) {
+      renderModelTable(predictions, 'model-eval-head', 'model-eval-body');
+      document.getElementById(resultId).textContent = `${modelName} evaluated on ${predictions.length} samples.`;
+      updateChartWithStats(stats);  
     } else {
       document.getElementById(resultId).textContent = `No evaluation data available for ${modelName}.`;
       showToast(`No evaluation data for ${modelName}.`);
     }
+
+    if (stats) {
+      console.log(`${modelName} Stats:`, stats);
+    }
+
   } catch (err) {
     console.error(`Error evaluating ${modelName}:`, err);
     showToast(`Failed to evaluate ${modelName}.`);
@@ -175,6 +179,7 @@ async function evaluateModel(endpoint, resultId, modelName) {
     stopLoading();
   }
 }
+
 
 function renderModelTable(data, headId, bodyId) {
   const head = document.getElementById(headId);
@@ -191,6 +196,7 @@ function renderModelTable(data, headId, bodyId) {
     '<tr>' + keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>'
   ).join('');
 }
+
 function showToast(message) {
   const toastContainer = document.createElement('div');
   toastContainer.className = 'toast-container';
@@ -278,84 +284,19 @@ function renderModelChart(modelKey, stats) {
       data,
       options: {
         responsive: true,
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: `${modelKey.toUpperCase()} Model Metrics`
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 1
-          }
-        }
+        maintainAspectRatio: false
       }
     });
   }
 }
 
 function updateChartWithStats(stats) {
-  const modelName = stats.model.toLowerCase().replace(/\s|_/g, '');
+  const modelName = stats.model ? stats.model.toLowerCase().replace(/\s|_/g, '') : '';
   if (modelName === 'randomforest' || modelName === 'rfmodel') {
     renderModelChart('rf', stats);
-  } else if (modelName === 'isolationforest'  || modelName === 'isomodel') {
+  } else if (modelName === 'isolationforest' || modelName === 'isomodel') {
     renderModelChart('iso', stats);
-  } else if (modelName === 'autoencoder'  || modelName === 'automodel') {
+  } else if (modelName === 'autoencoder' || modelName === 'automodel') {
     renderModelChart('auto', stats);
   }
 }
-
-
-document.addEventListener("DOMContentLoaded", () => {
-  // Initial fade-in effect
-  document.body.classList.add("fade-in");
-
-  // Setup tab logic
-  const tabButtons = document.querySelectorAll(".tab-button");
-  const tabContents = document.querySelectorAll(".tab-content");
-
-  tabButtons.forEach(button => {
-    button.addEventListener("click", () => {
-      const target = button.getAttribute("data-target");
-
-      // Remove active and fade-in/fade-out from all
-      tabButtons.forEach(btn => btn.classList.remove("active"));
-      tabContents.forEach(content => {
-        content.classList.remove("active", "fade-in");
-        content.classList.add("fade-out");
-      });
-
-      const selectedContent = document.getElementById(target);
-      button.classList.add("active");
-
-      setTimeout(() => {
-        tabContents.forEach(content => content.classList.remove("fade-out"));
-        selectedContent.classList.add("active", "fade-in");
-      }, 100); 
-    });
-  });
-
-  const firstTab = document.querySelector(".tab-button");
-  if (firstTab) firstTab.click();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.body.classList.add("fade-in");
-
-  requestAnimationFrame(() => {
-    document.body.classList.add("loaded");
-  });
-
-  document.querySelectorAll(".tab-button").forEach(button => {
-    button.addEventListener("click", () => {
-      const targetTabId = button.dataset.tab;
-      setActiveTab(targetTabId);
-    });
-  });
-
-  setActiveTab("dataset");
-});
