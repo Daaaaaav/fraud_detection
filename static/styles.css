@@ -294,6 +294,7 @@ input:checked + .slider:before {
 #loading-bar {
   height: 4px;
   width: 0;
+  transition: width 0.4s ease-in-out;
   background-color: var(--accent);
   transition: width 0.4s ease;
 }
@@ -333,4 +334,16 @@ input:checked + .slider:before {
 .tab-content.show {
   display: block;
   opacity: 1;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.chart-container {
+  width: 100%;
+  max-width: 600px;
+  height: 400px;
+  margin: 0 auto;
 }

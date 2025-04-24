@@ -191,13 +191,19 @@ function renderModelTable(data, headId, bodyId) {
     '<tr>' + keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>'
   ).join('');
 }
-
 function showToast(message) {
-  const toast = document.getElementById('global-toast');
-  toast.textContent = message;
-  toast.style.display = 'block';
+  const toastContainer = document.createElement('div');
+  toastContainer.className = 'toast-container';
+
+  const toastMessage = document.createElement('div');
+  toastMessage.className = 'toast-message';
+  toastMessage.textContent = message;
+
+  toastContainer.appendChild(toastMessage);
+  document.body.appendChild(toastContainer);
+
   setTimeout(() => {
-    toast.style.display = 'none';
+    toastContainer.remove();
   }, 3000);
 }
 
@@ -293,14 +299,16 @@ function renderModelChart(modelKey, stats) {
 }
 
 function updateChartWithStats(stats) {
-  if (stats.model === 'Random Forest' || stats.model === 'rf_model') {
+  const modelName = stats.model.toLowerCase().replace(/\s|_/g, '');
+  if (modelName === 'randomforest' || modelName === 'rfmodel') {
     renderModelChart('rf', stats);
-  } else if (stats.model === 'Isolation Forest') {
+  } else if (modelName === 'isolationforest'  || modelName === 'isomodel') {
     renderModelChart('iso', stats);
-  } else if (stats.model === 'Autoencoder') {
+  } else if (modelName === 'autoencoder'  || modelName === 'automodel') {
     renderModelChart('auto', stats);
   }
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
   // Initial fade-in effect

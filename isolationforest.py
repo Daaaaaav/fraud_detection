@@ -8,25 +8,32 @@ def train_isolation_forest():
     data = np.load('processed_data.npz')
     X_train = data['X_train']
     X_test = data['X_test']
-    y_test = data['y_test']
+    y_test = data['y_test']  # Assuming 1 = fraud, 0 = normal
 
     model = IsolationForest(contamination=0.01, random_state=42)
     model.fit(X_train)
     joblib.dump(model, 'isolation_forest_model.pkl')
 
+    # Predict and map for scoring
     y_pred = model.predict(X_test)
-    y_test_mapped = np.where(y_test == 1, -1, 1)
+    y_pred_mapped = np.where(y_pred == -1, 1, 0)  # -1 → fraud, 1 → normal
 
-    metrics = {
-        'model': 'Isolation Forest',
-        'accuracy': accuracy_score(y_test_mapped, y_pred),
-        'precision': precision_score(y_test_mapped, y_pred, pos_label=-1, zero_division=0),
-        'recall': recall_score(y_test_mapped, y_pred, pos_label=-1, zero_division=0),
-        'f1_score': f1_score(y_test_mapped, y_pred, pos_label=-1, zero_division=0),
-        'message': 'Isolation Forest trained and saved'
+    total = len(y_pred)
+    anomaly_count = np.sum(y_pred == -1)
+
+    stats = {
+        'total': total,
+        'anomalies_detected': int(anomaly_count),
+        'normal': int(total - anomaly_count),
+        'anomaly_rate': round((anomaly_count / total) * 100, 2),
+        'accuracy': accuracy_score(y_test, y_pred_mapped),
+        'precision': precision_score(y_test, y_pred_mapped, zero_division=0),
+        'recall': recall_score(y_test, y_pred_mapped, zero_division=0),
+        'f1_score': f1_score(y_test, y_pred_mapped, zero_division=0)
     }
 
-    return metrics
+    return stats
+
 
 def detect_anomalies():
     df = pd.read_csv("creditcard.csv")

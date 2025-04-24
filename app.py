@@ -180,3 +180,7 @@ def predict_autoencoder_route():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
+    stats = train_isolation_forest()
+    print("Isolation Forest Training Complete:")
+    for k, v in stats.items():
+        print(f"{k}: {v}")
