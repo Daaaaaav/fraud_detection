@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import pandas as pd
 import joblib
+import numpy as np
 
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model
@@ -53,6 +54,7 @@ def train_iso():
         logging.info('Training Isolation Forest...')
         result = train_isolation_forest()
         logging.info(f'Isolation Forest training complete: {result}')
+        result['message'] = 'Isolation Forest model trained successfully.'
         return jsonify(result)
     except Exception as e:
         logging.error(f'Error in /train/isolationforest: {e}')
@@ -177,10 +179,84 @@ def predict_autoencoder_route():
         logging.error(f"Autoencoder prediction error: {e}")
         return jsonify({"error": str(e)}), 500
 
+from flask import request
+
+@app.route('/predict/randomforest/user', methods=['POST'])
+def predict_rf_user():
+    try:
+        logging.info("Received request for /predict/randomforest/user")
+        model = joblib.load('rf_model.pkl')
+        logging.info("Random Forest model loaded successfully")
+        
+        user_data = request.get_json(force=True)
+        logging.debug(f"User input: {user_data}")
+
+        feature_order = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
+        input_values = [user_data[feature] for feature in feature_order]
+        df = pd.DataFrame([input_values], columns=feature_order)
+
+        prediction = model.predict(df)[0]
+        label = 'Fraudulent' if prediction == 1 else 'Not Fraudulent'
+
+        logging.info(f"Prediction: {prediction} ({label})")
+        return jsonify({'prediction': int(prediction), 'label': label})
+    except Exception as e:
+        logging.exception("Error in /predict/randomforest/user")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predict/isolationforest/user', methods=['POST'])
+def predict_iso_user():
+    try:
+        logging.info("Received request for /predict/isolationforest/user")
+        model = joblib.load('isolation_forest_model.pkl')
+        logging.info("Isolation Forest model loaded successfully")
+
+        user_data = request.get_json(force=True)
+        logging.debug(f"User input: {user_data}")
+
+        df = pd.DataFrame([user_data])
+        prediction = model.predict(df)[0]
+        label = 'Anomaly (Possible Fraud)' if prediction == -1 else 'Normal'
+
+        logging.info(f"Prediction: {prediction} ({label})")
+        return jsonify({'prediction': int(prediction), 'label': label})
+    except Exception as e:
+        logging.exception("Error in /predict/isolationforest/user")
+        return jsonify({'error': str(e)}), 500
+
+
+def predict_autoencoder_manual(user_input):
+    try:
+        logging.info("Predicting using manual Autoencoder input")
+        model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
+        logging.info("Autoencoder model loaded")
+
+        scaler = joblib.load("models/scaler.pkl")
+        logging.info("Scaler loaded")
+
+        X_manual = np.array(user_input).reshape(1, -1)
+        X_scaled = scaler.transform(X_manual)
+
+        X_pred = model.predict(X_scaled)
+        mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)[0]
+        logging.debug(f"MSE calculated: {mse}")
+
+        with open("models/threshold.txt", "r") as f:
+            threshold = float(f.read())
+        logging.debug(f"Loaded threshold: {threshold}")
+
+        is_fraud = mse > threshold
+        logging.info(f"Prediction: {'Anomaly' if is_fraud else 'Normal'} (MSE: {mse})")
+        return {
+            "mse": mse,
+            "threshold": threshold,
+            "is_fraud": bool(is_fraud)
+        }
+    except Exception as e:
+        logging.exception("Error in predict_autoencoder_manual")
+        return {"error": str(e)}
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
-    stats = train_isolation_forest()
-    print("Isolation Forest Training Complete:")
-    for k, v in stats.items():
-        print(f"{k}: {v}")
