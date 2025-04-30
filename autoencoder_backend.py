@@ -77,7 +77,6 @@ def predict_autoencoder():
     scaler = joblib.load("models/scaler.pkl")
 
     X = df.drop(columns=["Class"])
-    y_true = df["Class"].values
     X_scaled = scaler.transform(X)
 
     # Reconstruction
@@ -89,26 +88,8 @@ def predict_autoencoder():
         threshold = float(f.read())
 
     df["MSE"] = mse
-    df["is_fraud"] = df["MSE"] > threshold
+    df["is_anomaly"] = df["MSE"] > threshold
 
-
-    # Evaluation
-    y_pred = df["is_fraud"].astype(int).values
-    acc = accuracy_score(y_true, y_pred)
-    prec = precision_score(y_true, y_pred)
-    rec = recall_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred)
-
-    # Return both stats and top 100 anomalies
-    top_anomalies = df[df["is_fraud"] == True].head(100).to_dict(orient="records")
-
-
-    return {
-        "anomalies": top_anomalies,
-        "stats": {
-            "accuracy": acc,
-            "precision": prec,
-            "recall": rec,
-            "f1_score": f1
-        }
-    }
+    # Return top 100 anomalies
+    result = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
+    return result
