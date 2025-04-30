@@ -147,6 +147,54 @@ async function trainModel(endpoint, modelName, resultId, metricId) {
   }
 }
 
+async function trainAutoencoder() {
+  startLoading();
+  try {
+    const res = await fetch('/train/autoencoder', { method: 'POST' });
+    const result = await res.json();
+
+    const output = document.getElementById('auto-output');
+    output.textContent = `Autoencoder Training:\n${JSON.stringify(result, null, 2)}`;
+    showToast(result.message || "Autoencoder training completed.");
+    updateChartWithStats(result);
+  } catch (error) {
+    console.error('Error training autoencoder:', error);
+    document.getElementById('auto-output').textContent = 'Failed to train autoencoder.';
+    showToast("Training failed for Autoencoder.");
+  } finally {
+    stopLoading();
+  }
+}
+
+async function predictAutoencoder() {
+  startLoading();
+  try {
+    const res = await fetch('/predict/autoencoder/all');
+    const result = await res.json();
+
+    console.log("Autoencoder prediction result:", result);
+    const output = document.getElementById('auto-output');
+
+    if (Array.isArray(result)) {
+      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
+    } else if (Array.isArray(result.predictions)) {
+      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+    } else {
+      output.textContent = `Autoencoder Prediction:\n${JSON.stringify(result, null, 2)}`;
+    }
+
+    if (result.stats) {
+      updateChartWithStats(result.stats);
+    }
+  } catch (error) {
+    console.error('Error predicting with autoencoder:', error);
+    document.getElementById('auto-output').textContent = 'Failed to get predictions.';
+    showToast("Autoencoder prediction failed.");
+  } finally {
+    stopLoading();
+  }
+}
+
 const trainRF = () => trainModel('/train/randomforest', 'rf_model', 'trainRFResult', 'rf-metrics');
 const trainISO = () => trainModel('/train/isolationforest', 'iso_model', 'trainISOResult');
 const trainCombined = () => trainModel('/train/combined', 'rf_model.pkl', 'trainCombinedResult');
@@ -369,8 +417,12 @@ function fillExample() {
     V21: 0.9, V22: -0.7, V23: 0.1, V24: -0.3, V25: 0.8,
     V26: -0.9, V27: 0.5, V28: 0.3, Amount: 250.00
   };
-  Object.keys(example).forEach(key => {
+  Object.entries(example).forEach(([key, value]) => {
     const input = document.getElementById(key);
-    if (input) input.value = example[key];
+    if (!input) {
+      console.warn(`Missing input field: ${key}`);
+    } else {
+      input.value = value;
+    }
   });
 }

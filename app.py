@@ -1,9 +1,9 @@
 import logging
+import logging
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import pandas as pd
 import joblib
-import numpy as np
 
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model
@@ -54,7 +54,6 @@ def train_iso():
         logging.info('Training Isolation Forest...')
         result = train_isolation_forest()
         logging.info(f'Isolation Forest training complete: {result}')
-        result['message'] = 'Isolation Forest model trained successfully.'
         return jsonify(result)
     except Exception as e:
         logging.error(f'Error in /train/isolationforest: {e}')
@@ -178,8 +177,6 @@ def predict_autoencoder_route():
     except Exception as e:
         logging.error(f"Autoencoder prediction error: {e}")
         return jsonify({"error": str(e)}), 500
-
-from flask import request
 
 @app.route('/predict/randomforest/user', methods=['POST'])
 def predict_rf_user():
