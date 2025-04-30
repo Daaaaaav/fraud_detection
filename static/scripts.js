@@ -171,27 +171,22 @@ async function predictAutoencoder() {
   try {
     const res = await fetch('/predict/autoencoder/all');
     const result = await res.json();
-
+    
     console.log("Autoencoder prediction result:", result);
+
     const output = document.getElementById('auto-output');
+    output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
 
     if (Array.isArray(result)) {
-      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
+      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
     } else if (Array.isArray(result.predictions)) {
-      output.textContent = `Predictions (first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
     } else {
-      output.textContent = `Autoencoder Prediction:\n${JSON.stringify(result, null, 2)}`;
-    }
-
-    if (result.stats) {
-      updateChartWithStats(result.stats);
+      output.textContent = `Autoencoder Prediction Response:\n${JSON.stringify(result, null, 2)}`;
     }
   } catch (error) {
     console.error('Error predicting with autoencoder:', error);
     document.getElementById('auto-output').textContent = 'Failed to get predictions.';
-    showToast("Autoencoder prediction failed.");
-  } finally {
-    stopLoading();
   }
 }
 

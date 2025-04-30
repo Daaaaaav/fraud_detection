@@ -151,32 +151,13 @@ def train_autoencoder_route():
 @app.route("/predict/autoencoder/all", methods=["GET"])
 def predict_autoencoder_route():
     try:
-        logging.info("Predicting with Autoencoder...")
-        df, predictions, mse_threshold = predict_autoencoder()
-
-        result_df = df.copy()
-        result_df['Autoencoder_Anomaly'] = predictions
-        result_df['Anomaly_Label'] = result_df['Autoencoder_Anomaly'].map({0: 'Normal', 1: 'Anomaly (Possible Fraud)'})
-        result_df['Actual_Label'] = result_df['Class'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
-
-        anomaly_count = sum(predictions)
-        total = len(predictions)
-        stats = {
-            'total': total,
-            'anomalies_detected': int(anomaly_count),
-            'normal': int(total - anomaly_count),
-            'anomaly_rate': round((anomaly_count / total) * 100, 2),
-            'mse_threshold': mse_threshold
-        }
-
-        logging.info("Autoencoder prediction successful.")
-        return jsonify({
-            'predictions': result_df.head(100).to_dict(orient='records'),
-            'stats': stats
-        })
+        results = predict_autoencoder()
+        return jsonify(results)
     except Exception as e:
-        logging.error(f"Autoencoder prediction error: {e}")
+        print("Autoencoder prediction error:", e)
         return jsonify({"error": str(e)}), 500
+
+
 
 @app.route('/predict/randomforest/user', methods=['POST'])
 def predict_rf_user():
