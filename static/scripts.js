@@ -334,7 +334,7 @@ document.getElementById("user-input-form")?.addEventListener("submit", async (e)
   const model = document.getElementById("model-select").value;
   const inputFields = document.querySelectorAll("#input-fields input");
   const values = Array.from(inputFields).map(i => parseFloat(i.value));
-  
+
   if (values.some(isNaN)) {
     showToast("Please enter valid numbers.");
     return;
@@ -350,7 +350,7 @@ document.getElementById("user-input-form")?.addEventListener("submit", async (e)
 
     const result = await response.json();
     const resultDiv = document.getElementById("prediction-result");
-    
+
     if (result.error) {
       resultDiv.innerHTML = `<p style="color:red;">${result.error}</p>`;
     } else {
@@ -362,26 +362,11 @@ document.getElementById("user-input-form")?.addEventListener("submit", async (e)
     }
   } catch (error) {
     console.error("Prediction error:", error);
-    showToast("Failed to predict.");
+showToast("Failed to predict. Check console for details.");
+
   } finally {
     stopLoading();
   }
-});
-
-function generateInputFields(numFields = 30) {
-  const container = document.getElementById("input-fields");
-  container.innerHTML = "";
-  for (let i = 0; i < numFields; i++) {
-    const input = document.createElement("input");
-    input.type = "number";
-    input.step = "any";
-    input.placeholder = `Feature ${i + 1}`;
-    container.appendChild(input);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  generateInputFields(30); 
 });
 
 const inputFieldsContainer = document.getElementById("input-fields");
@@ -393,10 +378,12 @@ featureNames.forEach((feature) => {
   label.textContent = feature;
 
   const input = document.createElement("input");
-  input.type = "number";
-  input.name = feature;
-  input.id = feature;
-  input.required = true;
+input.type = "number";
+input.step = "any";  
+input.name = feature;
+input.id = feature;
+input.required = true;
+
 
   inputFieldsContainer.appendChild(label);
   inputFieldsContainer.appendChild(input);
@@ -412,12 +399,8 @@ function fillExample() {
     V21: 0.9, V22: -0.7, V23: 0.1, V24: -0.3, V25: 0.8,
     V26: -0.9, V27: 0.5, V28: 0.3, Amount: 250.00
   };
-  Object.entries(example).forEach(([key, value]) => {
+  Object.keys(example).forEach(key => {
     const input = document.getElementById(key);
-    if (!input) {
-      console.warn(`Missing input field: ${key}`);
-    } else {
-      input.value = value;
-    }
+    if (input) input.value = parseFloat(example[key]);
   });
 }
