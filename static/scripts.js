@@ -280,15 +280,16 @@ document.getElementById('user-input-form')?.addEventListener('submit', async fun
   let endpoint = '';
   switch (model) {
     case 'rf':
-      endpoint = '/predict/randomforest/user';
+      endpoint = '/predict/randomforest/manual';
       break;
     case 'iso':
-      endpoint = '/predict/isolationforest/user';
+      endpoint = '/predict/isolationforest/manual';
       break;
     case 'auto':
-      endpoint = '/predict/autoencoder/user';
+      endpoint = '/predict/autoencoder/manual';
       break;
   }
+  
 
   try {
     const res = await fetch(endpoint, {
@@ -329,41 +330,43 @@ async function renderInputFields() {
 
 renderInputFields();
 
-document.getElementById("user-input-form")?.addEventListener("submit", async (e) => {
+document.getElementById('user-input-form')?.addEventListener('submit', async function (e) {
   e.preventDefault();
-  const model = document.getElementById("model-select").value;
-  const inputFields = document.querySelectorAll("#input-fields input");
-  const values = Array.from(inputFields).map(i => parseFloat(i.value));
 
-  if (values.some(isNaN)) {
-    showToast("Please enter valid numbers.");
-    return;
+  const form = e.target;
+  const formData = new FormData(form);
+  const data = {};
+
+  for (let [key, value] of formData.entries()) {
+    // Try to parse numbers automatically
+    const num = parseFloat(value);
+    data[key] = isNaN(num) ? value : num;
   }
 
   startLoading();
   try {
-    const response = await fetch(`/predict/${model}/manual`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ features: values })
+    const res = await fetch('/predict/single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
 
-    const result = await response.json();
-    const resultDiv = document.getElementById("prediction-result");
+    const result = await res.json();
+    console.log('Prediction result:', result);
 
-    if (result.error) {
-      resultDiv.innerHTML = `<p style="color:red;">${result.error}</p>`;
-    } else {
-      resultDiv.innerHTML = `
-        <p><strong>MSE:</strong> ${result.mse.toFixed(6)}</p>
-        <p><strong>Threshold:</strong> ${result.threshold.toFixed(6)}</p>
-        <p><strong>Prediction:</strong> ${result.is_fraud ? "Fraudulent" : "Normal"}</p>
-      `;
+    const output = document.getElementById('user-input-output');
+    if (output) {
+      output.textContent = `Prediction Result:\n${JSON.stringify(result, null, 2)}`;
     }
-  } catch (error) {
-    console.error("Prediction error:", error);
-showToast("Failed to predict. Check console for details.");
 
+    showToast(result.message || 'Prediction completed.');
+  } catch (error) {
+    console.error('Error submitting user input:', error);
+    showToast('Prediction failed.');
+    const output = document.getElementById('user-input-output');
+    if (output) {
+      output.textContent = 'Prediction failed due to an error.';
+    }
   } finally {
     stopLoading();
   }
