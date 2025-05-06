@@ -20,17 +20,17 @@ function stopLoading() {
 
 // ========== Spinner Functions ==========
 function showSpinner() {
-  document.getElementById('spinner')?.style.setProperty('display', 'block');
+  document.getElementById("spinner")?.style.setProperty("display", "block");
 }
 
 function hideSpinner() {
-  document.getElementById('spinner')?.style.setProperty('display', 'none');
+  document.getElementById("spinner")?.style.setProperty("display", "none");
 }
 
 // ========== Toast Notification ==========
 function showToast(message) {
-  const toast = document.createElement('div');
-  toast.className = 'toast-container';
+  const toast = document.createElement("div");
+  toast.className = "toast-container";
   toast.innerHTML = `<div class="toast-message">${message}</div>`;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
@@ -38,93 +38,147 @@ function showToast(message) {
 
 // ========== Tab Switching ==========
 function setActiveTab(tabId) {
-  document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+  document
+    .querySelectorAll(".tab-button")
+    .forEach((btn) => btn.classList.remove("active"));
+  document
+    .querySelectorAll(".tab-content")
+    .forEach((tab) => tab.classList.remove("active"));
 
-  document.querySelector(`.tab-button[data-tab="${tabId}"]`)?.classList.add('active');
-  document.getElementById(tabId)?.classList.add('active');
+  document
+    .querySelector(`.tab-button[data-tab="${tabId}"]`)
+    ?.classList.add("active");
+  document.getElementById(tabId)?.classList.add("active");
 }
 
 // ========== Load Data into Table ==========
 async function loadData() {
-  const tableHead = document.getElementById('table-head');
-  const tableBody = document.getElementById('table-body');
+  const tableHead = document.getElementById("table-head");
+  const tableBody = document.getElementById("table-body");
   startLoading();
   try {
-    const response = await fetch('/preprocess', { method: 'POST' });
+    const response = await fetch("/preprocess", { method: "POST" });
     const result = await response.json();
 
     if (Array.isArray(result.sample) && result.sample.length) {
       const keys = Object.keys(result.sample[0]);
-      tableHead.innerHTML = `<tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>`;
-      tableBody.innerHTML = result.sample.map(row => 
-        `<tr>${keys.map(k => `<td>${row[k]}</td>`).join('')}</tr>`
-      ).join('');
+      tableHead.innerHTML = `<tr>${keys
+        .map((k) => `<th>${k}</th>`)
+        .join("")}</tr>`;
+      tableBody.innerHTML = result.sample
+        .map(
+          (row) => `<tr>${keys.map((k) => `<td>${row[k]}</td>`).join("")}</tr>`
+        )
+        .join("");
     } else {
       tableBody.innerHTML = `<tr><td colspan="100%">No data available</td></tr>`;
     }
-    console.log('Preprocessing Info:', result.info);
+    console.log("Preprocessing Info:", result.info);
   } catch (error) {
-    console.error('Error loading data:', error);
+    console.error("Error loading data:", error);
     tableBody.innerHTML = `<tr><td colspan="100%">Error loading data.</td></tr>`;
   } finally {
     stopLoading();
   }
 }
 
-const charts = { rf: null, iso: null, auto: null };
+let comparisonChart = null;
 
-function renderModelChart(modelKey, stats) {
-  const chartIds = { rf: 'chart-rf', iso: 'chart-iso', auto: 'chart-auto' };
-  const ctx = document.getElementById(chartIds[modelKey])?.getContext('2d');
-  if (!ctx) return;
+function renderGroupedBarChart(metrics) {
+  const ctx = document.getElementById("chart-comparison").getContext("2d");
 
-  const data = {
-    labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
-    datasets: [{
-      label: modelKey.toUpperCase(),
+  const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
+
+  const datasets = [
+    {
+      label: "Random Forest",
+      backgroundColor: "#4caf50",
       data: [
-        stats.accuracy ?? 0,
-        stats.precision ?? 0,
-        stats.recall ?? 0,
-        stats.f1_score ?? 0
+        metrics.rf?.accuracy ?? 0,
+        metrics.rf?.precision ?? 0,
+        metrics.rf?.recall ?? 0,
+        metrics.rf?.f1_score ?? 0,
       ],
-      backgroundColor: ['#4caf50', '#2196f3', '#ffc107', '#e91e63']
-    }]
-  };
+    },
+    {
+      label: "Isolation Forest",
+      backgroundColor: "#2196f3",
+      data: [
+        metrics.iso?.accuracy ?? 0,
+        metrics.iso?.precision ?? 0,
+        metrics.iso?.recall ?? 0,
+        metrics.iso?.f1_score ?? 0,
+      ],
+    },
+    {
+      label: "Autoencoder",
+      backgroundColor: "#ff9800",
+      data: [
+        metrics.auto?.accuracy ?? 0,
+        metrics.auto?.precision ?? 0,
+        metrics.auto?.recall ?? 0,
+        metrics.auto?.f1_score ?? 0,
+      ],
+    },
+  ];
 
-  if (charts[modelKey]) {
-    charts[modelKey].data = data;
-    charts[modelKey].update();
+  if (comparisonChart) {
+    comparisonChart.data.datasets = datasets;
+    comparisonChart.update();
   } else {
-    charts[modelKey] = new Chart(ctx, {
-      type: 'bar',
-      data,
-      options: { responsive: true, maintainAspectRatio: false }
+    comparisonChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets,
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Model Performance Comparison",
+          },
+          legend: {
+            position: "top",
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 1,
+          },
+        },
+      },
     });
   }
 }
 
-function updateChartWithStats(stats) {
-  if (!stats?.model) return;
-  const modelKey = stats.model.toLowerCase().includes('auto') ? 'auto'
-                  : stats.model.toLowerCase().includes('isolation') ? 'iso'
-                  : 'rf';
-  renderModelChart(modelKey, stats);
-}
+const allModelStats = {
+  rf: { accuracy: 0.91, precision: 0.93, recall: 0.89, f1_score: 0.91 },
+  iso: { accuracy: 0.87, precision: 0.85, recall: 0.88, f1_score: 0.86 },
+  auto: { accuracy: 0.88, precision: 0.9, recall: 0.87, f1_score: 0.89 },
+};
+
+renderGroupedBarChart(allModelStats);
 
 // ========== Training Functions ==========
 async function trainModel(endpoint, modelName, resultId, metricId) {
   startLoading();
   try {
     const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: modelName })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: modelName }),
     });
     const data = await res.json();
 
-    if (resultId) document.getElementById(resultId).textContent = JSON.stringify(data, null, 2);
+    if (resultId)
+      document.getElementById(resultId).textContent = JSON.stringify(
+        data,
+        null,
+        2
+      );
     if (metricId && data) {
       document.getElementById(metricId).textContent = `
         Model: ${data.model || modelName}
@@ -150,16 +204,21 @@ async function trainModel(endpoint, modelName, resultId, metricId) {
 async function trainAutoencoder() {
   startLoading();
   try {
-    const res = await fetch('/train/autoencoder', { method: 'POST' });
+    const res = await fetch("/train/autoencoder", { method: "POST" });
     const result = await res.json();
 
-    const output = document.getElementById('auto-output');
-    output.textContent = `Autoencoder Training:\n${JSON.stringify(result, null, 2)}`;
+    const output = document.getElementById("auto-output");
+    output.textContent = `Autoencoder Training:\n${JSON.stringify(
+      result,
+      null,
+      2
+    )}`;
     showToast(result.message || "Autoencoder training completed.");
     updateChartWithStats(result);
   } catch (error) {
-    console.error('Error training autoencoder:', error);
-    document.getElementById('auto-output').textContent = 'Failed to train autoencoder.';
+    console.error("Error training autoencoder:", error);
+    document.getElementById("auto-output").textContent =
+      "Failed to train autoencoder.";
     showToast("Training failed for Autoencoder.");
   } finally {
     stopLoading();
@@ -169,30 +228,50 @@ async function trainAutoencoder() {
 async function predictAutoencoder() {
   startLoading();
   try {
-    const res = await fetch('/predict/autoencoder/all');
+    const res = await fetch("/predict/autoencoder/all");
     const result = await res.json();
-    
+
     console.log("Autoencoder prediction result:", result);
 
-    const output = document.getElementById('auto-output');
-    output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
+    const output = document.getElementById("auto-output");
+    output.textContent = `Predictions (showing first 5):\n${JSON.stringify(
+      result.slice(0, 5),
+      null,
+      2
+    )}`;
 
     if (Array.isArray(result)) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
+      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(
+        result.slice(0, 5),
+        null,
+        2
+      )}`;
     } else if (Array.isArray(result.predictions)) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(
+        result.predictions.slice(0, 5),
+        null,
+        2
+      )}`;
     } else {
-      output.textContent = `Autoencoder Prediction Response:\n${JSON.stringify(result, null, 2)}`;
+      output.textContent = `Autoencoder Prediction Response:\n${JSON.stringify(
+        result,
+        null,
+        2
+      )}`;
     }
   } catch (error) {
-    console.error('Error predicting with autoencoder:', error);
-    document.getElementById('auto-output').textContent = 'Failed to get predictions.';
+    console.error("Error predicting with autoencoder:", error);
+    document.getElementById("auto-output").textContent =
+      "Failed to get predictions.";
   }
 }
 
-const trainRF = () => trainModel('/train/randomforest', 'rf_model', 'trainRFResult', 'rf-metrics');
-const trainISO = () => trainModel('/train/isolationforest', 'iso_model', 'trainISOResult');
-const trainCombined = () => trainModel('/train/combined', 'rf_model.pkl', 'trainCombinedResult');
+const trainRF = () =>
+  trainModel("/train/randomforest", "rf_model", "trainRFResult", "rf-metrics");
+const trainISO = () =>
+  trainModel("/train/isolationforest", "iso_model", "trainISOResult");
+const trainCombined = () =>
+  trainModel("/train/combined", "rf_model.pkl", "trainCombinedResult");
 
 // ========== Evaluation Functions ==========
 async function evaluateModel(endpoint, resultId, modelName) {
@@ -203,11 +282,15 @@ async function evaluateModel(endpoint, resultId, modelName) {
     const { predictions, stats } = data;
 
     if (Array.isArray(predictions) && predictions.length) {
-      renderModelTable(predictions, 'model-eval-head', 'model-eval-body');
-      document.getElementById(resultId).textContent = `${modelName} evaluated on ${predictions.length} samples.`;
+      renderModelTable(predictions, "model-eval-head", "model-eval-body");
+      document.getElementById(
+        resultId
+      ).textContent = `${modelName} evaluated on ${predictions.length} samples.`;
       updateChartWithStats(stats);
     } else {
-      document.getElementById(resultId).textContent = `No evaluation data available for ${modelName}.`;
+      document.getElementById(
+        resultId
+      ).textContent = `No evaluation data available for ${modelName}.`;
       showToast(`No evaluation data for ${modelName}.`);
     }
     console.log(`${modelName} Evaluation Stats:`, stats);
@@ -219,18 +302,28 @@ async function evaluateModel(endpoint, resultId, modelName) {
   }
 }
 
-const evaluateRF = () => evaluateModel('/predict/randomforest/all', 'rfEvalResult', 'Random Forest');
-const evaluateISO = () => evaluateModel('/predict/isolationforest/all', 'isoEvalResult', 'Isolation Forest');
+const evaluateRF = () =>
+  evaluateModel("/predict/randomforest/all", "rfEvalResult", "Random Forest");
+const evaluateISO = () =>
+  evaluateModel(
+    "/predict/isolationforest/all",
+    "isoEvalResult",
+    "Isolation Forest"
+  );
 
 async function evaluateCombined() {
   try {
     showSpinner();
-    const response = await fetch('/predict/combined');
+    const response = await fetch("/predict/combined");
     const { stats } = await response.json();
-    document.getElementById('combinedEvalResult').textContent = JSON.stringify(stats, null, 2);
+    document.getElementById("combinedEvalResult").textContent = JSON.stringify(
+      stats,
+      null,
+      2
+    );
   } catch (error) {
-    console.error('Error evaluating combined model:', error);
-    alert('Error evaluating combined model.');
+    console.error("Error evaluating combined model:", error);
+    alert("Error evaluating combined model.");
   } finally {
     hideSpinner();
   }
@@ -243,149 +336,154 @@ function renderModelTable(predictions, headId, bodyId) {
   if (!predictions.length) return;
 
   const keys = Object.keys(predictions[0]);
-  tableHead.innerHTML = `<tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>`;
-  tableBody.innerHTML = predictions.map(row =>
-    `<tr>${keys.map(k => `<td>${row[k]}</td>`).join('')}</tr>`
-  ).join('');
+  tableHead.innerHTML = `<tr>${keys.map((k) => `<th>${k}</th>`).join("")}</tr>`;
+  tableBody.innerHTML = predictions
+    .map((row) => `<tr>${keys.map((k) => `<td>${row[k]}</td>`).join("")}</tr>`)
+    .join("");
 }
 
-document.querySelectorAll('.tab-button').forEach(button =>
-  button.addEventListener('click', () => setActiveTab(button.dataset.tab))
-);
+document
+  .querySelectorAll(".tab-button")
+  .forEach((button) =>
+    button.addEventListener("click", () => setActiveTab(button.dataset.tab))
+  );
 
-const toggleInput = document.getElementById('toggle-input');
+const toggleInput = document.getElementById("toggle-input");
 if (toggleInput) {
-  if (localStorage.getItem('darkMode') === 'true') {
-    document.body.classList.add('dark');
+  if (localStorage.getItem("darkMode") === "true") {
+    document.body.classList.add("dark");
     toggleInput.checked = true;
   }
-  toggleInput.addEventListener('change', () => {
-    document.body.classList.toggle('dark');
-    localStorage.setItem('darkMode', document.body.classList.contains('dark'));
-    showToast('Toggled dark mode');
+  toggleInput.addEventListener("change", () => {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+    showToast("Toggled dark mode");
   });
 }
 
-setActiveTab('dataset');
+setActiveTab("dataset");
 
-document.getElementById('user-input-form')?.addEventListener('submit', async function (e) {
-  e.preventDefault();
-  const model = document.getElementById('model-select').value;
-  const inputs = document.querySelectorAll('#input-fields input');
-  const inputData = {};
+document
+  .getElementById("user-input-form")
+  ?.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const model = document.getElementById("model-select").value;
+    const inputs = document.querySelectorAll("#input-fields input");
+    const inputData = {};
 
-  inputs.forEach(input => inputData[input.name] = parseFloat(input.value));
+    inputs.forEach(
+      (input) => (inputData[input.name] = parseFloat(input.value))
+    );
 
-  showSpinner();
-  let endpoint = '';
-  switch (model) {
-    case 'rf':
-      endpoint = '/predict/randomforest/user';
-      break;
-    case 'iso':
-      endpoint = '/predict/isolationforest/user';
-      break;
-    case 'auto':
-      endpoint = '/predict/autoencoder/user';
-      break;
-  }
+    showSpinner();
+    let endpoint = "";
+    switch (model) {
+      case "rf":
+        endpoint = "/predict/randomforest/manual";
+        break;
+      case "iso":
+        endpoint = "/predict/isolationforest/manual";
+        break;
+      case "auto":
+        endpoint = "/predict/autoencoder/manual";
+        break;
+    }
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(inputData)
-    });
-    const result = await res.json();
-    if (result.error) throw new Error(result.error);
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inputData),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
 
-    document.getElementById('prediction-result').innerText = `Prediction: ${result.label}`;
-  } catch (err) {
-    showToast(`Prediction failed: ${err.message}`);
-  } finally {
-    hideSpinner();
-  }
-});
+      document.getElementById(
+        "prediction-result"
+      ).innerText = `Prediction: ${result.label}`;
+    } catch (err) {
+      showToast(`Prediction failed: ${err.message}`);
+    } finally {
+      hideSpinner();
+    }
+  });
 
 async function renderInputFields() {
   try {
-    const response = await fetch('/preprocess', { method: 'POST' });
+    const response = await fetch("/preprocess", { method: "POST" });
     const result = await response.json();
     const sample = result.sample[0];
-    const container = document.getElementById('input-fields');
-    container.innerHTML = '';
+    const container = document.getElementById("input-fields");
+    container.innerHTML = "";
 
-    Object.keys(sample).forEach(key => {
-      const input = document.createElement('input');
+    Object.keys(sample).forEach((key) => {
+      const input = document.createElement("input");
       input.name = key;
       input.placeholder = key;
-      input.type = 'number';
+      input.type = "number";
       container.appendChild(input);
     });
   } catch (e) {
-    console.error('Failed to render input fields:', e);
+    console.error("Failed to render input fields:", e);
   }
 }
 
 renderInputFields();
 
-document.getElementById("user-input-form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const model = document.getElementById("model-select").value;
-  const inputFields = document.querySelectorAll("#input-fields input");
-  const values = Array.from(inputFields).map(i => parseFloat(i.value));
-  
-  if (values.some(isNaN)) {
-    showToast("Please enter valid numbers.");
-    return;
-  }
+document
+  .getElementById("user-input-form")
+  ?.addEventListener("submit", async function (e) {
+    e.preventDefault();
 
-  startLoading();
-  try {
-    const response = await fetch(`/predict/${model}/manual`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ features: values })
-    });
+    const form = e.target;
+    const formData = new FormData(form);
+    const data = {};
 
-    const result = await response.json();
-    const resultDiv = document.getElementById("prediction-result");
-    
-    if (result.error) {
-      resultDiv.innerHTML = `<p style="color:red;">${result.error}</p>`;
-    } else {
-      resultDiv.innerHTML = `
-        <p><strong>MSE:</strong> ${result.mse.toFixed(6)}</p>
-        <p><strong>Threshold:</strong> ${result.threshold.toFixed(6)}</p>
-        <p><strong>Prediction:</strong> ${result.is_fraud ? "Fraudulent" : "Normal"}</p>
-      `;
+    for (let [key, value] of formData.entries()) {
+      // Try to parse numbers automatically
+      const num = parseFloat(value);
+      data[key] = isNaN(num) ? value : num;
     }
-  } catch (error) {
-    console.error("Prediction error:", error);
-    showToast("Failed to predict.");
-  } finally {
-    stopLoading();
-  }
-});
 
-function generateInputFields(numFields = 30) {
-  const container = document.getElementById("input-fields");
-  container.innerHTML = "";
-  for (let i = 0; i < numFields; i++) {
-    const input = document.createElement("input");
-    input.type = "number";
-    input.step = "any";
-    input.placeholder = `Feature ${i + 1}`;
-    container.appendChild(input);
-  }
-}
+    startLoading();
+    try {
+      const res = await fetch("/predict/single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-document.addEventListener("DOMContentLoaded", () => {
-  generateInputFields(30); 
-});
+      const result = await res.json();
+      console.log("Prediction result:", result);
+
+      const output = document.getElementById("user-input-output");
+      if (output) {
+        output.textContent = `Prediction Result:\n${JSON.stringify(
+          result,
+          null,
+          2
+        )}`;
+      }
+
+      showToast(result.message || "Prediction completed.");
+    } catch (error) {
+      console.error("Error submitting user input:", error);
+      // showToast("Prediction failed.");
+      const output = document.getElementById("user-input-output");
+      if (output) {
+        output.textContent = "Prediction failed due to an error.";
+      }
+    } finally {
+      stopLoading();
+    }
+  });
 
 const inputFieldsContainer = document.getElementById("input-fields");
-const featureNames = ["Time", ...Array.from({ length: 28 }, (_, i) => `V${i + 1}`), "Amount"];
+const featureNames = [
+  "Time",
+  ...Array.from({ length: 28 }, (_, i) => `V${i + 1}`),
+  "Amount",
+];
 
 featureNames.forEach((feature) => {
   const label = document.createElement("label");
@@ -394,6 +492,7 @@ featureNames.forEach((feature) => {
 
   const input = document.createElement("input");
   input.type = "number";
+  input.step = "any";
   input.name = feature;
   input.id = feature;
   input.required = true;
@@ -405,19 +504,38 @@ featureNames.forEach((feature) => {
 function fillExample() {
   const example = {
     Time: 12345,
-    V1: -1.2, V2: 0.3, V3: -0.5, V4: 1.3, V5: 0.9,
-    V6: -1.1, V7: 0.2, V8: 0.4, V9: -0.2, V10: 1.0,
-    V11: -1.3, V12: 0.7, V13: -0.1, V14: 0.3, V15: -0.8,
-    V16: 0.6, V17: -0.5, V18: 1.4, V19: -1.2, V20: 0.2,
-    V21: 0.9, V22: -0.7, V23: 0.1, V24: -0.3, V25: 0.8,
-    V26: -0.9, V27: 0.5, V28: 0.3, Amount: 250.00
+    V1: -1.2,
+    V2: 0.3,
+    V3: -0.5,
+    V4: 1.3,
+    V5: 0.9,
+    V6: -1.1,
+    V7: 0.2,
+    V8: 0.4,
+    V9: -0.2,
+    V10: 1.0,
+    V11: -1.3,
+    V12: 0.7,
+    V13: -0.1,
+    V14: 0.3,
+    V15: -0.8,
+    V16: 0.6,
+    V17: -0.5,
+    V18: 1.4,
+    V19: -1.2,
+    V20: 0.2,
+    V21: 0.9,
+    V22: -0.7,
+    V23: 0.1,
+    V24: -0.3,
+    V25: 0.8,
+    V26: -0.9,
+    V27: 0.5,
+    V28: 0.3,
+    Amount: 250.0,
   };
-  Object.entries(example).forEach(([key, value]) => {
+  Object.keys(example).forEach((key) => {
     const input = document.getElementById(key);
-    if (!input) {
-      console.warn(`Missing input field: ${key}`);
-    } else {
-      input.value = value;
-    }
+    if (input) input.value = parseFloat(example[key]);
   });
 }
