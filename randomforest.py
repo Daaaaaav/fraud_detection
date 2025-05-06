@@ -52,11 +52,13 @@ def load_and_predict_bulk(model_path='rf_model.pkl'):
     top_frauds = df[df["is_fraud"] == True].head(100)
 
     return {
-        "top_frauds": top_frauds.to_dict(orient="records"),
-        "stats": {
-            "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0)
-        }
+    "top_frauds": top_frauds.to_dict(orient="records"),
+    "stats": {
+        "model": "Random Forest",  
+        "accuracy": accuracy_score(y_true, df["predicted"]),
+        "precision": precision_score(y_true, df["predicted"], zero_division=0),
+        "recall": recall_score(y_true, df["predicted"], zero_division=0),
+        "f1_score": f1_score(y_true, df["predicted"], zero_division=0)
     }
+}
+

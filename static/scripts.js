@@ -92,7 +92,6 @@ function renderModelChart(modelKey, stats) {
       backgroundColor: ['#4caf50', '#2196f3', '#ffc107', '#e91e63']
     }]
   };
-
   if (charts[modelKey]) {
     charts[modelKey].data = data;
     charts[modelKey].update();
@@ -104,6 +103,8 @@ function renderModelChart(modelKey, stats) {
     });
   }
 }
+
+
 
 function updateChartWithStats(stats) {
   if (!stats?.model) return;
@@ -171,11 +172,10 @@ async function predictAutoencoder() {
   try {
     const res = await fetch('/predict/autoencoder/all');
     const result = await res.json();
-    
+
     console.log("Autoencoder prediction result:", result);
 
     const output = document.getElementById('auto-output');
-    output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
 
     if (Array.isArray(result)) {
       output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
@@ -184,11 +184,13 @@ async function predictAutoencoder() {
     } else {
       output.textContent = `Autoencoder Prediction Response:\n${JSON.stringify(result, null, 2)}`;
     }
+
   } catch (error) {
     console.error('Error predicting with autoencoder:', error);
     document.getElementById('auto-output').textContent = 'Failed to get predictions.';
   }
 }
+
 
 const trainRF = () => trainModel('/train/randomforest', 'rf_model', 'trainRFResult', 'rf-metrics');
 const trainISO = () => trainModel('/train/isolationforest', 'iso_model', 'trainISOResult');
@@ -218,6 +220,61 @@ async function evaluateModel(endpoint, resultId, modelName) {
     stopLoading();
   }
 }
+
+async function predictRandomForest() {
+  startLoading();
+  try {
+    const response = await fetch('/predict/randomforest/all');
+    const result = await response.json();
+    console.log('Random Forest result:', result);
+
+    const output = document.getElementById('rf-output');
+    output.textContent = `Predictions (first 5 shown):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+
+    updateChartWithStats({ 
+      model: "RandomForest", 
+      accuracy: 0, 
+      precision: 0,
+      recall: 0,
+      f1_score: 0 
+    });
+
+    showToast("Random Forest prediction done.");
+  } catch (error) {
+    console.error('Error predicting with Random Forest:', error);
+    // showToast("RF Prediction failed.");
+  } finally {
+    stopLoading();
+  }
+}
+
+async function predictIsolationForest() {
+  startLoading();
+  try {
+    const response = await fetch('/predict/isolationforest/all');
+    const result = await response.json();
+    console.log('Isolation Forest result:', result);
+
+    const output = document.getElementById('iso-output');
+    output.textContent = `Predictions (first 5 shown):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
+
+    updateChartWithStats({
+      model: "IsolationForest",
+      accuracy: 0,
+      precision: 0,
+      recall: 0,
+      f1_score: 0
+    });
+
+    showToast("Isolation Forest prediction done.");
+  } catch (error) {
+    console.error('Error predicting with Isolation Forest:', error);
+    // showToast("IF Prediction failed.");
+  } finally {
+    stopLoading();
+  }
+}
+
 
 const evaluateRF = () => evaluateModel('/predict/randomforest/all', 'rfEvalResult', 'Random Forest');
 const evaluateISO = () => evaluateModel('/predict/isolationforest/all', 'isoEvalResult', 'Isolation Forest');
@@ -302,7 +359,7 @@ document.getElementById('user-input-form')?.addEventListener('submit', async fun
 
     document.getElementById('prediction-result').innerText = `Prediction: ${result.label}`;
   } catch (err) {
-    showToast(`Prediction failed: ${err.message}`);
+    // showToast(`Prediction failed: ${err.message}`);
   } finally {
     hideSpinner();
   }
@@ -338,7 +395,6 @@ document.getElementById('user-input-form')?.addEventListener('submit', async fun
   const data = {};
 
   for (let [key, value] of formData.entries()) {
-    // Try to parse numbers automatically
     const num = parseFloat(value);
     data[key] = isNaN(num) ? value : num;
   }
@@ -362,7 +418,7 @@ document.getElementById('user-input-form')?.addEventListener('submit', async fun
     showToast(result.message || 'Prediction completed.');
   } catch (error) {
     console.error('Error submitting user input:', error);
-    showToast('Prediction failed.');
+    // showToast('Prediction failed.');
     const output = document.getElementById('user-input-output');
     if (output) {
       output.textContent = 'Prediction failed due to an error.';
