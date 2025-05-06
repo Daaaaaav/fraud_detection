@@ -9,6 +9,8 @@ from preprocessing import preprocess_data
 from randomforest import train_and_save_model
 from isolationforest import train_isolation_forest, detect_anomalies
 from autoencoder_backend import train_autoencoder, predict_autoencoder
+import tensorflow as tf
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
@@ -159,13 +161,13 @@ def predict_autoencoder_route():
 
 
 
-@app.route('/predict/randomforest/user', methods=['POST'])
-def predict_rf_user():
+@app.route('/predict/randomforest/manual', methods=['POST'])
+def predict_rf_manual():
     try:
-        logging.info("Received request for /predict/randomforest/user")
+        logging.info("Received request for /predict/randomforest/manual")
         model = joblib.load('rf_model.pkl')
         logging.info("Random Forest model loaded successfully")
-        
+
         user_data = request.get_json(force=True)
         logging.debug(f"User input: {user_data}")
 
@@ -179,14 +181,14 @@ def predict_rf_user():
         logging.info(f"Prediction: {prediction} ({label})")
         return jsonify({'prediction': int(prediction), 'label': label})
     except Exception as e:
-        logging.exception("Error in /predict/randomforest/user")
+        logging.exception("Error in /predict/randomforest/manual")
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/predict/isolationforest/user', methods=['POST'])
-def predict_iso_user():
+@app.route('/predict/isolationforest/manual', methods=['POST'])
+def predict_iso_manual():
     try:
-        logging.info("Received request for /predict/isolationforest/user")
+        logging.info("Received request for /predict/isolationforest/manual")
         model = joblib.load('isolation_forest_model.pkl')
         logging.info("Isolation Forest model loaded successfully")
 
@@ -200,7 +202,33 @@ def predict_iso_user():
         logging.info(f"Prediction: {prediction} ({label})")
         return jsonify({'prediction': int(prediction), 'label': label})
     except Exception as e:
-        logging.exception("Error in /predict/isolationforest/user")
+        logging.exception("Error in /predict/isolationforest/manual")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predict/autoencoder/manual', methods=['POST'])
+def predict_autoencoder_manual_route():
+    try:
+        logging.info("Received request for /predict/autoencoder/manual")
+        user_data = request.get_json(force=True)
+        logging.debug(f"User input: {user_data}")
+
+        feature_order = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
+        input_values = [user_data[feature] for feature in feature_order]
+
+        result = predict_autoencoder_manual(input_values)
+        if "error" in result:
+            return jsonify({"error": result["error"]}), 500
+
+        label = "Fraudulent" if result["is_fraud"] else "Not Fraudulent"
+        return jsonify({
+            "mse": result["mse"],
+            "threshold": result["threshold"],
+            "is_fraud": result["is_fraud"],
+            "label": label
+        })
+    except Exception as e:
+        logging.exception("Error in /predict/autoencoder/manual")
         return jsonify({'error': str(e)}), 500
 
 
@@ -237,4 +265,4 @@ def predict_autoencoder_manual(user_input):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5006)
