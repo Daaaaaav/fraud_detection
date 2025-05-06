@@ -65,10 +65,12 @@ def detect_anomalies():
     return {
         "top_frauds": top_frauds.to_dict(orient="records"),
         "stats": {
+            "model": "Isolation Forest",  # <- Add this line
             "accuracy": accuracy_score(y_true, df["predicted"]),
             "precision": precision_score(y_true, df["predicted"], zero_division=0),
             "recall": recall_score(y_true, df["predicted"], zero_division=0),
             "f1_score": f1_score(y_true, df["predicted"], zero_division=0)
         }
     }
+
 
