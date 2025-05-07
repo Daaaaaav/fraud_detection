@@ -4,12 +4,9 @@ from sympy import true
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import precision_recall_curve, precision_score, recall_score, f1_score, accuracy_score
+from sklearn.metrics import precision_recall_curve
 from tensorflow.keras import layers, regularizers
-from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-import joblib
-import os
 
 MODEL_PATH = "best_autoencoder.h5"
 THRESHOLD_PATH = "best_threshold.txt"
