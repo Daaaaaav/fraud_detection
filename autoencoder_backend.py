@@ -1,6 +1,7 @@
 # autoencoder.py
 import numpy as np
 import pandas as pd
+from sympy import true
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
@@ -65,11 +66,12 @@ def train_autoencoder():
 
     np.save(THRESHOLD_PATH, best_threshold)
 
-    return {
+    return{
         "message": "Autoencoder trained successfully.",
         "best_f1_threshold": float(best_threshold),
         "best_f1_score": float(np.max(f1_scores))
-    }
+        }
+
 
 def predict_autoencoder():
     df = pd.read_csv("creditcard.csv")
@@ -77,7 +79,6 @@ def predict_autoencoder():
     scaler = joblib.load("models/scaler.pkl")
 
     X = df.drop(columns=["Class"])
-    y_true = df["Class"].values
     X_scaled = scaler.transform(X)
 
     # Reconstruction
@@ -89,33 +90,8 @@ def predict_autoencoder():
         threshold = float(f.read())
 
     df["MSE"] = mse
-    df["predicted"] = np.where(df["MSE"] > threshold, 1, 0)
-    df["is_fraud"] = df["predicted"] == 1
+    df["is_anomaly"] = df["MSE"] > threshold
 
-    # Separate anomalies and normal predictions
-    fraudulent_df = df[df["is_fraud"]]
-    non_fraudulent_df = df[~df["is_fraud"]]
-
-    # Select top 50 of each
-    top_frauds = pd.concat([
-        fraudulent_df.head(50),
-        non_fraudulent_df.head(50)
-    ]).sample(frac=1, random_state=42).reset_index(drop=True)
-
-    # Compute metrics
-    accuracy = accuracy_score(y_true, df["predicted"])
-    precision = precision_score(y_true, df["predicted"], zero_division=0)
-    recall = recall_score(y_true, df["predicted"], zero_division=0)
-    f1 = f1_score(y_true, df["predicted"], zero_division=0)
-
-    return {
-        "top_frauds": top_frauds.to_dict(orient="records"),
-        "stats": {
-            "model": "Autoencoder",
-            "threshold": threshold,
-            "accuracy": accuracy,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1
-        }
-    }
+    # Return top 100 anomalies
+    result = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
+    return result
