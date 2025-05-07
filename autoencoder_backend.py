@@ -1,4 +1,3 @@
-# autoencoder.py
 import numpy as np
 import pandas as pd
 from sympy import true

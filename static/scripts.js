@@ -327,18 +327,21 @@ document
     button.addEventListener("click", () => setActiveTab(button.dataset.tab))
   );
 
-const toggleInput = document.getElementById("toggle-input");
-if (toggleInput) {
-  if (localStorage.getItem("darkMode") === "true") {
-    document.body.classList.add("dark");
-    toggleInput.checked = true;
+  const toggleInput = document.getElementById("toggle-input"); 
+
+  if (toggleInput) {
+    if (localStorage.getItem("darkMode") === "true") {
+      document.body.classList.add("dark");
+      toggleInput.checked = true;
+    }
+  
+    toggleInput.addEventListener("change", () => {
+      const isDark = document.body.classList.toggle("dark");
+      localStorage.setItem("darkMode", isDark);
+      showToast(isDark ? "Toggled dark mode" : "Toggled light mode");
+    });
   }
-  toggleInput.addEventListener("change", () => {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
-    showToast("Toggled dark mode");
-  });
-}
+  
 
 setActiveTab("dataset");
 
