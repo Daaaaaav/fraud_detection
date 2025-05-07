@@ -53,29 +53,25 @@ function setActiveTab(tabId) {
 
 // ========== Load Data into Table ==========
 async function loadData() {
-  const tableHead = document.getElementById("table-head");
-  const tableBody = document.getElementById("table-body");
+  const tableHead = document.getElementById('table-head');
+  const tableBody = document.getElementById('table-body');
   startLoading();
   try {
-    const response = await fetch("/preprocess", { method: "POST" });
+    const response = await fetch('/preprocess', { method: 'POST' });
     const result = await response.json();
 
     if (Array.isArray(result.sample) && result.sample.length) {
       const keys = Object.keys(result.sample[0]);
-      tableHead.innerHTML = `<tr>${keys
-        .map((k) => `<th>${k}</th>`)
-        .join("")}</tr>`;
-      tableBody.innerHTML = result.sample
-        .map(
-          (row) => `<tr>${keys.map((k) => `<td>${row[k]}</td>`).join("")}</tr>`
-        )
-        .join("");
+      tableHead.innerHTML = `<tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>`;
+      tableBody.innerHTML = result.sample.map(row => 
+        `<tr>${keys.map(k => `<td>${row[k]}</td>`).join('')}</tr>`
+      ).join('');
     } else {
       tableBody.innerHTML = `<tr><td colspan="100%">No data available</td></tr>`;
     }
-    console.log("Preprocessing Info:", result.info);
+    console.log('Preprocessing Info:', result.info);
   } catch (error) {
-    console.error("Error loading data:", error);
+    console.error('Error loading data:', error);
     tableBody.innerHTML = `<tr><td colspan="100%">Error loading data.</td></tr>`;
   } finally {
     stopLoading();

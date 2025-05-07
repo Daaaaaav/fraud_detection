@@ -73,6 +73,11 @@ def train_autoencoder():
 
 
 def predict_autoencoder():
+    import pandas as pd
+    import numpy as np
+    import tensorflow as tf
+    import joblib
+
     df = pd.read_csv("creditcard.csv")
     model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
     scaler = joblib.load("models/scaler.pkl")
@@ -80,17 +85,27 @@ def predict_autoencoder():
     X = df.drop(columns=["Class"])
     X_scaled = scaler.transform(X)
 
-    # Reconstruction
     X_pred = model.predict(X_scaled)
     mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
 
-    # Load threshold
     with open("models/threshold.txt", "r") as f:
         threshold = float(f.read())
 
     df["MSE"] = mse
     df["is_anomaly"] = df["MSE"] > threshold
 
-    # Return top 100 anomalies
-    result = df[df["is_anomaly"] == 1].head(100).to_dict(orient="records")
-    return result
+    true_positives = df[(df["Class"] == 1) & (df["is_anomaly"] == 1)]
+    true_negatives = df[(df["Class"] == 0) & (df["is_anomaly"] == 0)]
+
+    tp_sample = true_positives.sample(n=min(3, len(true_positives)), random_state=42)
+    tn_sample = true_negatives.sample(n=min(2, len(true_negatives)), random_state=42)
+
+    if len(tp_sample) < 3 and len(true_negatives) > 2:
+        needed = 5 - len(tp_sample)
+        tn_sample = true_negatives.sample(n=min(needed, len(true_negatives)), random_state=43)
+    elif len(tn_sample) < 2 and len(true_positives) > 3:
+        needed = 5 - len(tn_sample)
+        tp_sample = true_positives.sample(n=min(needed, len(true_positives)), random_state=43)
+
+    combined_sample = pd.concat([tp_sample, tn_sample]).sample(frac=1, random_state=99)  # shuffle
+    return combined_sample.to_dict(orient="records")
