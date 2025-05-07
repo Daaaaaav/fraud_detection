@@ -21,7 +21,7 @@
     <button class="tab-button" data-tab="train">Train</button>
     <button class="tab-button" data-tab="evaluate">Evaluate</button>
     <button class="tab-button" data-tab="auto">Autoencoder</button>
-    <button class="tab-button" data-tab="input">Predict5 v-v </button>
+    <button class="tab-button" data-tab="input">Predict</button>
     <button class="tab-button" data-tab="charts">Charts</button>
   </nav>  
 
@@ -94,23 +94,13 @@
     <div id="prediction-result"></div>
   </section>
 
+ 
   <section id="charts" class="tab-content">
-    <h2>Model Performance Comparison</h2>
-    <div id="chart-container" style="display: flex; flex-wrap: wrap; gap: 16px;">
+      <h2>Model Performance Comparison</h2>
       <div class="card">
-        <h3>Random Forest</h3>
-        <canvas id="chart-rf" width="400" height="200"></canvas>
+        <canvas id="chart-comparison" width="800" height="400"></canvas>
       </div>
-      <div class="card">
-        <h3>Isolation Forest</h3>
-        <canvas id="chart-iso" width="400" height="200"></canvas>
-      </div>
-      <div class="card">
-        <h3>Autoencoder</h3>
-        <canvas id="chart-auto" width="400" height="200"></canvas>
-      </div>
-    </div>
-  </section>
+    </section>
   
 
   <div id="toast" class="toast hidden"></div>
