@@ -408,53 +408,53 @@ async function renderInputFields() {
 
 renderInputFields();
 
-document
-  .getElementById("user-input-form")
-  ?.addEventListener("submit", async function (e) {
-    e.preventDefault();
+// document
+//   .getElementById("user-input-form")
+//   ?.addEventListener("submit", async function (e) {
+//     e.preventDefault();
 
-    const form = e.target;
-    const formData = new FormData(form);
-    const data = {};
+//     const form = e.target;
+//     const formData = new FormData(form);
+//     const data = {};
 
-    for (let [key, value] of formData.entries()) {
-      // Try to parse numbers automatically
-      const num = parseFloat(value);
-      data[key] = isNaN(num) ? value : num;
-    }
+//     for (let [key, value] of formData.entries()) {
+//       // Try to parse numbers automatically
+//       const num = parseFloat(value);
+//       data[key] = isNaN(num) ? value : num;
+//     }
 
-    startLoading();
-    try {
-      const res = await fetch("/predict/single", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+//     startLoading();
+//     try {
+//       const res = await fetch("/predict/single", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(data),
+//       });
 
-      const result = await res.json();
-      console.log("Prediction result:", result);
+//       const result = await res.json();
+//       console.log("Prediction result:", result);
 
-      const output = document.getElementById("user-input-output");
-      if (output) {
-        output.textContent = `Prediction Result:\n${JSON.stringify(
-          result,
-          null,
-          2
-        )}`;
-      }
+//       const output = document.getElementById("user-input-output");
+//       if (output) {
+//         output.textContent = `Prediction Result:\n${JSON.stringify(
+//           result,
+//           null,
+//           2
+//         )}`;
+//       }
 
-      showToast(result.message || "Prediction completed.");
-    } catch (error) {
-      console.error("Error submitting user input:", error);
-      // showToast("Prediction failed.");
-      const output = document.getElementById("user-input-output");
-      if (output) {
-        output.textContent = "Prediction failed due to an error.";
-      }
-    } finally {
-      stopLoading();
-    }
-  });
+//       showToast(result.message || "Prediction completed.");
+//     } catch (error) {
+//       console.error("Error submitting user input:", error);
+//       // showToast("Prediction failed.");
+//       const output = document.getElementById("user-input-output");
+//       if (output) {
+//         output.textContent = "Prediction failed due to an error.";
+//       }
+//     } finally {
+//       stopLoading();
+//     }
+//   });
 
 const inputFieldsContainer = document.getElementById("input-fields");
 const featureNames = [
