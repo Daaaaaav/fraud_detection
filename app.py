@@ -7,9 +7,10 @@ import tensorflow as tf
 import numpy as np
 
 from preprocessing import preprocess_data
-from randomforest import train_and_save_model
+from randomforest import train_and_save_model, load_and_predict_bulk
 from isolationforest import train_isolation_forest, detect_anomalies
 from autoencoder_backend import train_autoencoder, predict_autoencoder
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 app = Flask(__name__)
 CORS(app)
@@ -106,6 +107,57 @@ def predict_rf_all():
     except Exception as e:
         logging.exception("Error in /predict/randomforest/all")
         return jsonify({'error': str(e)}), 500
+    
+@app.route("/metrics/randomforest", methods=["GET"])
+def metrics_random_forest():
+    try:
+        result = load_and_predict_bulk()
+        return jsonify(result["stats"])
+    except Exception as e:
+        logging.exception("Error in /metrics/randomforest")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/metrics/isolationforest", methods=["GET"])
+def metrics_isolation_forest():
+    try:
+        result = detect_anomalies()
+        return jsonify(result["stats"])
+    except Exception as e:
+        logging.exception("Error in /metrics/isolationforest")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/metrics/autoencoder", methods=["GET"])
+def metrics_autoencoder():
+    try:
+        df = pd.read_csv("creditcard.csv")
+        X = df.drop(columns=["Class"])
+        y_true = df["Class"]
+
+        model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
+        scaler = joblib.load("models/scaler.pkl")
+        with open("models/threshold.txt", "r") as f:
+            threshold = float(f.read())
+
+        X_scaled = scaler.transform(X)
+        X_pred = model.predict(X_scaled, verbose=0)
+        mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
+        y_pred = mse > threshold
+
+        stats = {
+            "model": "Autoencoder",
+            "accuracy": accuracy_score(y_true, y_pred),
+            "precision": precision_score(y_true, y_pred, zero_division=0),
+            "recall": recall_score(y_true, y_pred, zero_division=0),
+            "f1_score": f1_score(y_true, y_pred, zero_division=0)
+        }
+
+        return jsonify(stats)
+    except Exception as e:
+        logging.exception("Error in /metrics/autoencoder")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/predict/isolationforest/all', methods=['GET'])
 def predict_iso_all():

@@ -8,8 +8,8 @@ from sklearn.metrics import precision_recall_curve
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
-MODEL_PATH = "best_autoencoder.h5"
-THRESHOLD_PATH = "best_threshold.txt"
+MODEL_PATH = "models/autoencoder.h5"
+THRESHOLD_PATH = "models/threshold.txt"
 
 def load_data():
     df = pd.read_csv("creditcard.csv")

@@ -78,85 +78,85 @@ async function loadData() {
   }
 }
 
-let comparisonChart = null;
+// let comparisonChart = null;
 
-function renderGroupedBarChart(metrics) {
-  const ctx = document.getElementById("chart-comparison").getContext("2d");
+// function renderGroupedBarChart(metrics) {
+//   const ctx = document.getElementById("chart-comparison").getContext("2d");
 
-  const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
+//   const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
 
-  const datasets = [
-    {
-      label: "Random Forest",
-      backgroundColor: "#4caf50",
-      data: [
-        metrics.rf?.accuracy ?? 0,
-        metrics.rf?.precision ?? 0,
-        metrics.rf?.recall ?? 0,
-        metrics.rf?.f1_score ?? 0,
-      ],
-    },
-    {
-      label: "Isolation Forest",
-      backgroundColor: "#2196f3",
-      data: [
-        metrics.iso?.accuracy ?? 0,
-        metrics.iso?.precision ?? 0,
-        metrics.iso?.recall ?? 0,
-        metrics.iso?.f1_score ?? 0,
-      ],
-    },
-    {
-      label: "Autoencoder",
-      backgroundColor: "#ff9800",
-      data: [
-        metrics.auto?.accuracy ?? 0,
-        metrics.auto?.precision ?? 0,
-        metrics.auto?.recall ?? 0,
-        metrics.auto?.f1_score ?? 0,
-      ],
-    },
-  ];
+//   const datasets = [
+//     {
+//       label: "Random Forest",
+//       backgroundColor: "#4caf50",
+//       data: [
+//         metrics.rf?.accuracy ?? 0,
+//         metrics.rf?.precision ?? 0,
+//         metrics.rf?.recall ?? 0,
+//         metrics.rf?.f1_score ?? 0,
+//       ],
+//     },
+//     {
+//       label: "Isolation Forest",
+//       backgroundColor: "#2196f3",
+//       data: [
+//         metrics.iso?.accuracy ?? 0,
+//         metrics.iso?.precision ?? 0,
+//         metrics.iso?.recall ?? 0,
+//         metrics.iso?.f1_score ?? 0,
+//       ],
+//     },
+//     {
+//       label: "Autoencoder",
+//       backgroundColor: "#ff9800",
+//       data: [
+//         metrics.auto?.accuracy ?? 0,
+//         metrics.auto?.precision ?? 0,
+//         metrics.auto?.recall ?? 0,
+//         metrics.auto?.f1_score ?? 0,
+//       ],
+//     },
+//   ];
 
-  if (comparisonChart) {
-    comparisonChart.data.datasets = datasets;
-    comparisonChart.update();
-  } else {
-    comparisonChart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels,
-        datasets,
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: "Model Performance Comparison",
-          },
-          legend: {
-            position: "top",
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 1,
-          },
-        },
-      },
-    });
-  }
-}
+//   if (comparisonChart) {
+//     comparisonChart.data.datasets = datasets;
+//     comparisonChart.update();
+//   } else {
+//     comparisonChart = new Chart(ctx, {
+//       type: "bar",
+//       data: {
+//         labels,
+//         datasets,
+//       },
+//       options: {
+//         responsive: true,
+//         plugins: {
+//           title: {
+//             display: true,
+//             text: "Model Performance Comparison",
+//           },
+//           legend: {
+//             position: "top",
+//           },
+//         },
+//         scales: {
+//           y: {
+//             beginAtZero: true,
+//             max: 1,
+//           },
+//         },
+//       },
+//     });
+//   }
+// }
 
-const allModelStats = {
-  rf: { accuracy: 0.91, precision: 0.93, recall: 0.89, f1_score: 0.91 },
-  iso: { accuracy: 0.87, precision: 0.85, recall: 0.88, f1_score: 0.86 },
-  auto: { accuracy: 0.88, precision: 0.9, recall: 0.87, f1_score: 0.89 },
-};
+// const allModelStats = {
+//   rf: { accuracy: 0.91, precision: 0.93, recall: 0.89, f1_score: 0.91 },
+//   iso: { accuracy: 0.87, precision: 0.85, recall: 0.88, f1_score: 0.86 },
+//   auto: { accuracy: 0.88, precision: 0.9, recall: 0.87, f1_score: 0.89 },
+// };
 
-renderGroupedBarChart(allModelStats);
+// renderGroupedBarChart(allModelStats);
 
 // ========== Training Functions ==========
 async function trainModel(endpoint, modelName, resultId, metricId) {
@@ -341,6 +341,119 @@ document
 
 setActiveTab("dataset");
 
+// document
+//   .getElementById("user-input-form")
+//   ?.addEventListener("submit", async function (e) {
+//     e.preventDefault();
+
+//     const form = e.target;
+//     const formData = new FormData(form);
+//     const data = {};
+
+//     for (let [key, value] of formData.entries()) {
+//       // Try to parse numbers automatically
+//       const num = parseFloat(value);
+//       data[key] = isNaN(num) ? value : num;
+//     }
+
+//     startLoading();
+//     try {
+//       const res = await fetch("/predict/single", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(data),
+//       });
+
+//       const result = await res.json();
+//       console.log("Prediction result:", result);
+
+//       const output = document.getElementById("user-input-output");
+//       if (output) {
+//         output.textContent = `Prediction Result:\n${JSON.stringify(
+//           result,
+//           null,
+//           2
+//         )}`;
+//       }
+
+//       showToast(result.message || "Prediction completed.");
+//     } catch (error) {
+//       console.error("Error submitting user input:", error);
+//       // showToast("Prediction failed.");
+//       const output = document.getElementById("user-input-output");
+//       if (output) {
+//         output.textContent = "Prediction failed due to an error.";
+//       }
+//     } finally {
+//       stopLoading();
+//     }
+//   });
+
+let comparisonChart = null;
+
+async function fetchAndRenderMetrics() {
+  const canvas = document.getElementById("chart-comparison");
+
+  // If Chart.js attached a chart instance before, destroy it safely
+  if (Chart.getChart(canvas)) {
+    Chart.getChart(canvas).destroy();
+  }
+
+  try {
+    const response = await fetch("/api/metrics");
+    const data = await response.json();
+
+    const chartData = {
+      labels: data.labels || ["Accuracy", "Precision", "Recall", "F1"],
+      datasets: data.datasets || [
+        {
+          label: "Random Forest",
+          backgroundColor: "rgba(75,192,192,0.6)",
+          data: [0.94, 0.91, 0.92, 0.93]
+        },
+        {
+          label: "Isolation Forest",
+          backgroundColor: "rgba(153,102,255,0.6)",
+          data: [0.82, 0.79, 0.81, 0.80]
+        },
+        {
+          label: "Autoencoder",
+          backgroundColor: "rgba(255,159,64,0.6)",
+          data: [0.87, 0.85, 0.86, 0.86]
+        }
+      ]
+    };
+
+    const ctx = canvas.getContext("2d");
+    comparisonChart = new Chart(ctx, {
+      type: "bar",
+      data: chartData,
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Model Performance Comparison"
+          },
+          legend: {
+            display: true,
+            position: "bottom"
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 1
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Error loading chart:", err);
+    showToast("Failed to load chart data: " + err.message);
+  }
+}
+
 document
   .getElementById("user-input-form")
   ?.addEventListener("submit", async function (e) {
@@ -406,55 +519,7 @@ async function renderInputFields() {
   }
 }
 
-renderInputFields();
-
-// document
-//   .getElementById("user-input-form")
-//   ?.addEventListener("submit", async function (e) {
-//     e.preventDefault();
-
-//     const form = e.target;
-//     const formData = new FormData(form);
-//     const data = {};
-
-//     for (let [key, value] of formData.entries()) {
-//       // Try to parse numbers automatically
-//       const num = parseFloat(value);
-//       data[key] = isNaN(num) ? value : num;
-//     }
-
-//     startLoading();
-//     try {
-//       const res = await fetch("/predict/single", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(data),
-//       });
-
-//       const result = await res.json();
-//       console.log("Prediction result:", result);
-
-//       const output = document.getElementById("user-input-output");
-//       if (output) {
-//         output.textContent = `Prediction Result:\n${JSON.stringify(
-//           result,
-//           null,
-//           2
-//         )}`;
-//       }
-
-//       showToast(result.message || "Prediction completed.");
-//     } catch (error) {
-//       console.error("Error submitting user input:", error);
-//       // showToast("Prediction failed.");
-//       const output = document.getElementById("user-input-output");
-//       if (output) {
-//         output.textContent = "Prediction failed due to an error.";
-//       }
-//     } finally {
-//       stopLoading();
-//     }
-//   });
+// renderInputFields();
 
 const inputFieldsContainer = document.getElementById("input-fields");
 const featureNames = [
