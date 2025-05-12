@@ -108,55 +108,32 @@ def predict_rf_all():
         logging.exception("Error in /predict/randomforest/all")
         return jsonify({'error': str(e)}), 500
     
-@app.route("/metrics/randomforest", methods=["GET"])
-def metrics_random_forest():
-    try:
-        result = load_and_predict_bulk()
-        return jsonify(result["stats"])
-    except Exception as e:
-        logging.exception("Error in /metrics/randomforest")
-        return jsonify({"error": str(e)}), 500
+@app.route('/train/all_models', methods=['POST'])
+def train_all_models():
+    rf_metrics = train_and_save_model()
+    iso_metrics = train_isolation_forest()
+    auto_metrics = train_autoencoder()
 
-
-@app.route("/metrics/isolationforest", methods=["GET"])
-def metrics_isolation_forest():
-    try:
-        result = detect_anomalies()
-        return jsonify(result["stats"])
-    except Exception as e:
-        logging.exception("Error in /metrics/isolationforest")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/metrics/autoencoder", methods=["GET"])
-def metrics_autoencoder():
-    try:
-        df = pd.read_csv("creditcard.csv")
-        X = df.drop(columns=["Class"])
-        y_true = df["Class"]
-
-        model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
-        scaler = joblib.load("models/scaler.pkl")
-        with open("models/threshold.txt", "r") as f:
-            threshold = float(f.read())
-
-        X_scaled = scaler.transform(X)
-        X_pred = model.predict(X_scaled, verbose=0)
-        mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
-        y_pred = mse > threshold
-
-        stats = {
-            "model": "Autoencoder",
-            "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0)
+    return jsonify({
+        "rf": {
+            "accuracy": rf_metrics["accuracy"],
+            "precision": rf_metrics["precision"],
+            "recall": rf_metrics["recall"],
+            "f1_score": rf_metrics["f1_score"]
+        },
+        "iso": {
+            "accuracy": iso_metrics["accuracy"],
+            "precision": iso_metrics["precision"],
+            "recall": iso_metrics["recall"],
+            "f1_score": iso_metrics["f1_score"]
+        },
+        "auto": {
+            "accuracy": auto_metrics["accuracy"],
+            "precision": auto_metrics["precision"],
+            "recall": auto_metrics["recall"],
+            "f1_score": auto_metrics["f1_score"]
         }
-
-        return jsonify(stats)
-    except Exception as e:
-        logging.exception("Error in /metrics/autoencoder")
-        return jsonify({"error": str(e)}), 500
+    })
 
 
 @app.route('/predict/isolationforest/all', methods=['GET'])

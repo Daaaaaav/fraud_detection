@@ -49,8 +49,18 @@
         <h2>Train Models</h2>
         <button onclick="trainRF()" class="btn">Random Forest</button>
         <button onclick="trainISO()" class="btn">Isolation Forest</button>
-        <pre id="trainRFResult" class="output-box"></pre>
-        <pre id="trainISOResult" class="output-box"></pre>
+         <pre><h4>Random Forest Training Results</h4>
+          <p>Accuracy: <span id="rf-accuracy">0.000</span></p>
+          <p>Precision: <span id="rf-precision">0.000</span></p>
+          <p>Recall: <span id="rf-recall">0.000</span></p>
+          <p>F1 Score: <span id="rf-f1_score">0.000</span></p>
+          <p>Anomaly Rate: <span id="rf-anomaly-rate">0%</span></p>
+         <pre><h4>Isolation Forest Training Results</h4>
+          <p>Accuracy: <span id="iso-accuracy">0.000</span></p>
+          <p>Precision: <span id="iso-precision">0.000</span></p>
+          <p>Recall: <span id="iso-recall">0.000</span></p>
+          <p>F1 Score: <span id="iso-f1_score">0.000</span></p>
+          <p>Anomaly Rate: <span id="iso-anomaly-rate">0%</span></p>
       </div>
       </section>
 
@@ -74,7 +84,13 @@
       <h2>Autoencoder</h2>
       <button class="btn" onclick="trainAutoencoder()">Train Model</button>
       <button class="btn" onclick="predictAutoencoder()">Predict All</button>
-      <div class="output-box" id="auto-output"></div>
+      <pre><h4>Autoencoder Training Results</h4>
+      Accuracy: <span id="auto-accuracy"></span><br>
+      Precision: <span id="auto-precision"></span><br>
+      Recall: <span id="auto-recall"></span><br>
+      F1 Score: <span id="auto-f1"></span><br>
+      Anomaly Rate: <span id="auto-anomaly-rate"></span></pre>
+      <div class="output-box" id="auto-output"></div></pre>
     </div>
   </section>
 
@@ -99,8 +115,8 @@
   <section id="charts" class="tab-content">
       <h2>Model Performance Comparison</h2>
       <div class="card">
-        <button onclick="fetchAndRenderMetrics()" class="btn">Refresh Model Stats</button>
-        <canvas id="chart-comparison" width="800" height="400"></canvas>
+        <button class="btn" onclick="trainAllModelsAndRenderChart()">Train All Models & Compare</button>
+        <canvas id="chart-comparison" width="600" height="400"></canvas>
       </div>
     </section>
   

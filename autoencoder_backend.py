@@ -1,14 +1,21 @@
+import os
 import numpy as np
 import pandas as pd
-from sympy import true
 import tensorflow as tf
+import joblib
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import precision_recall_curve
-from tensorflow.keras import layers, regularizers
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
+from tensorflow.keras import layers
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
 
 MODEL_PATH = "models/autoencoder.h5"
+RF_PATH = "models/random_forest.pkl"
+BOTTLENECK_MODEL_PATH = "models/encoder.h5"
+SCALER_PATH = "models/scaler.pkl"
 THRESHOLD_PATH = "models/threshold.txt"
 
 def load_data():
@@ -20,89 +27,95 @@ def load_data():
     return X_scaled, y, scaler
 
 def train_autoencoder():
-    X_scaled, y, _ = load_data()
+    X_scaled, y, scaler = load_data()
+    joblib.dump(scaler, SCALER_PATH)
+
     X_normal = X_scaled[y == 0]
     X_train, X_val = train_test_split(X_normal, test_size=0.2, random_state=42)
     input_dim = X_train.shape[1]
 
+    # Define autoencoder and encoder
     input_layer = layers.Input(shape=(input_dim,))
-    encoded = layers.Dense(64, activation="relu", activity_regularizer=regularizers.l2(1e-5))(input_layer)
-    encoded = layers.Dropout(0.2)(encoded)
-    encoded = layers.Dense(32, activation="relu")(encoded)
-    encoded = layers.Dense(16, activation="relu")(encoded)
+    x = layers.Dense(128, activation="relu")(input_layer)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(64, activation="relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(32, activation="relu")(x)
+    bottleneck = layers.Dense(16, activation="relu", name="bottleneck")(x)
+    x = layers.Dense(32, activation="relu")(bottleneck)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(64, activation="relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(128, activation="relu")(x)
+    output_layer = layers.Dense(input_dim, activation="linear")(x)
 
-    decoded = layers.Dense(32, activation="relu")(encoded)
-    decoded = layers.Dense(64, activation="relu")(decoded)
-    decoded = layers.Dropout(0.2)(decoded)
-    decoded = layers.Dense(input_dim, activation="linear")(decoded)
+    autoencoder = tf.keras.Model(inputs=input_layer, outputs=output_layer)
+    autoencoder.compile(optimizer=Adam(learning_rate=1e-4), loss="mean_absolute_error")
+    encoder = tf.keras.Model(inputs=input_layer, outputs=bottleneck)
 
-    autoencoder = tf.keras.Model(inputs=input_layer, outputs=decoded)
-    autoencoder.compile(optimizer="adam", loss="mean_squared_error")
-
+    # Train autoencoder
     checkpoint = ModelCheckpoint(filepath=MODEL_PATH, monitor='val_loss', save_best_only=True, verbose=1)
-    early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
 
-    history = autoencoder.fit(
+    autoencoder.fit(
         X_train, X_train,
-        epochs=100,
-        batch_size=64,
+        epochs=200,
+        batch_size=256,
         shuffle=True,
         validation_data=(X_val, X_val),
-        callbacks=[checkpoint, early_stop],
-        verbose=0
+        callbacks=[checkpoint, early_stop, reduce_lr],
+        verbose=1
     )
 
     autoencoder.load_weights(MODEL_PATH)
-    reconstructions = autoencoder.predict(X_scaled)
-    mse = np.mean(np.power(X_scaled - reconstructions, 2), axis=1)
 
-    precisions, recalls, thresholds = precision_recall_curve(y, mse)
-    f1_scores = 2 * (precisions[:-1] * recalls[:-1]) / (precisions[:-1] + recalls[:-1] + 1e-8)
-    best_threshold = thresholds[np.argmax(f1_scores)]
+    # Extract bottleneck features
+    bottleneck_features = encoder.predict(X_scaled, verbose=0)
 
-    np.save(THRESHOLD_PATH, best_threshold)
+    # Train Random Forest on encoded features
+    rf_clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_clf.fit(bottleneck_features, y)
 
-    return{
-        "message": "Autoencoder trained successfully.",
-        "best_f1_threshold": float(best_threshold),
-        "best_f1_score": float(np.max(f1_scores))
-        }
+    joblib.dump(rf_clf, RF_PATH)
+    encoder.save(BOTTLENECK_MODEL_PATH)
 
+    # Evaluate
+    preds = rf_clf.predict(bottleneck_features)
+    accuracy = accuracy_score(y, preds)
+    precision = precision_score(y, preds)
+    recall = recall_score(y, preds)
+    f1 = f1_score(y, preds)
+    anomaly_rate = np.mean(preds)
+
+    return {
+        "message": "Autoencoder model with Random Forest base trained successfully.",
+        "accuracy": round(accuracy, 4),
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1_score": round(f1, 4),
+        "anomaly_rate": round(anomaly_rate, 4)
+    }
 
 def predict_autoencoder():
-    import pandas as pd
-    import numpy as np
-    import tensorflow as tf
-    import joblib
-
     df = pd.read_csv("creditcard.csv")
-    model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
-    scaler = joblib.load("models/scaler.pkl")
+    model = tf.keras.models.load_model(BOTTLENECK_MODEL_PATH, compile=False)
+    rf_clf = joblib.load(RF_PATH)
+    scaler = joblib.load(SCALER_PATH)
 
     X = df.drop(columns=["Class"])
+    y = df["Class"]
     X_scaled = scaler.transform(X)
 
-    X_pred = model.predict(X_scaled)
-    mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
+    bottleneck_features = model.predict(X_scaled, verbose=0)
+    predictions = rf_clf.predict(bottleneck_features)
+    df["Predicted"] = predictions
 
-    with open("models/threshold.txt", "r") as f:
-        threshold = float(f.read())
-
-    df["MSE"] = mse
-    df["is_anomaly"] = df["MSE"] > threshold
-
-    true_positives = df[(df["Class"] == 1) & (df["is_anomaly"] == 1)]
-    true_negatives = df[(df["Class"] == 0) & (df["is_anomaly"] == 0)]
+    true_positives = df[(df["Class"] == 1) & (df["Predicted"] == 1)]
+    true_negatives = df[(df["Class"] == 0) & (df["Predicted"] == 0)]
 
     tp_sample = true_positives.sample(n=min(3, len(true_positives)), random_state=42)
     tn_sample = true_negatives.sample(n=min(2, len(true_negatives)), random_state=42)
 
-    if len(tp_sample) < 3 and len(true_negatives) > 2:
-        needed = 5 - len(tp_sample)
-        tn_sample = true_negatives.sample(n=min(needed, len(true_negatives)), random_state=43)
-    elif len(tn_sample) < 2 and len(true_positives) > 3:
-        needed = 5 - len(tn_sample)
-        tp_sample = true_positives.sample(n=min(needed, len(true_positives)), random_state=43)
-
-    combined_sample = pd.concat([tp_sample, tn_sample]).sample(frac=1, random_state=99)  # shuffle
+    combined_sample = pd.concat([tp_sample, tn_sample]).sample(frac=1, random_state=99)
     return combined_sample.to_dict(orient="records")

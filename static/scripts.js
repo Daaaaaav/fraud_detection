@@ -78,88 +78,95 @@ async function loadData() {
   }
 }
 
-// let comparisonChart = null;
+async function trainAllModelsAndRenderChart() {
+  startLoading();
+  try {
+    const res = await fetch("/train/all_models", { method: "POST" });
+    const data = await res.json();
+    renderGroupedBarChart(data);
+    showToast("All models trained and metrics updated.");
+  } catch (err) {
+    console.error("Failed to train models or fetch metrics:", err);
+    showToast("Error training models.");
+  } finally {
+    stopLoading();
+  }
+}
 
-// function renderGroupedBarChart(metrics) {
-//   const ctx = document.getElementById("chart-comparison").getContext("2d");
+let comparisonChart = null;
 
-//   const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
+function renderGroupedBarChart(metrics) {
+  const ctx = document.getElementById("chart-comparison").getContext("2d");
 
-//   const datasets = [
-//     {
-//       label: "Random Forest",
-//       backgroundColor: "#4caf50",
-//       data: [
-//         metrics.rf?.accuracy ?? 0,
-//         metrics.rf?.precision ?? 0,
-//         metrics.rf?.recall ?? 0,
-//         metrics.rf?.f1_score ?? 0,
-//       ],
-//     },
-//     {
-//       label: "Isolation Forest",
-//       backgroundColor: "#2196f3",
-//       data: [
-//         metrics.iso?.accuracy ?? 0,
-//         metrics.iso?.precision ?? 0,
-//         metrics.iso?.recall ?? 0,
-//         metrics.iso?.f1_score ?? 0,
-//       ],
-//     },
-//     {
-//       label: "Autoencoder",
-//       backgroundColor: "#ff9800",
-//       data: [
-//         metrics.auto?.accuracy ?? 0,
-//         metrics.auto?.precision ?? 0,
-//         metrics.auto?.recall ?? 0,
-//         metrics.auto?.f1_score ?? 0,
-//       ],
-//     },
-//   ];
+  const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
 
-//   if (comparisonChart) {
-//     comparisonChart.data.datasets = datasets;
-//     comparisonChart.update();
-//   } else {
-//     comparisonChart = new Chart(ctx, {
-//       type: "bar",
-//       data: {
-//         labels,
-//         datasets,
-//       },
-//       options: {
-//         responsive: true,
-//         plugins: {
-//           title: {
-//             display: true,
-//             text: "Model Performance Comparison",
-//           },
-//           legend: {
-//             position: "top",
-//           },
-//         },
-//         scales: {
-//           y: {
-//             beginAtZero: true,
-//             max: 1,
-//           },
-//         },
-//       },
-//     });
-//   }
-// }
+  const datasets = [
+    {
+      label: "Random Forest",
+      backgroundColor: "#4caf50",
+      data: [
+        metrics.rf?.accuracy ?? 0,
+        metrics.rf?.precision ?? 0,
+        metrics.rf?.recall ?? 0,
+        metrics.rf?.f1_score ?? 0,
+      ],
+    },
+    {
+      label: "Isolation Forest",
+      backgroundColor: "#2196f3",
+      data: [
+        metrics.iso?.accuracy ?? 0,
+        metrics.iso?.precision ?? 0,
+        metrics.iso?.recall ?? 0,
+        metrics.iso?.f1_score ?? 0,
+      ],
+    },
+    {
+      label: "Autoencoder",
+      backgroundColor: "#ff9800",
+      data: [
+        metrics.auto?.accuracy ?? 0,
+        metrics.auto?.precision ?? 0,
+        metrics.auto?.recall ?? 0,
+        metrics.auto?.f1_score ?? 0,
+      ],
+    },
+  ];
 
-// const allModelStats = {
-//   rf: { accuracy: 0.91, precision: 0.93, recall: 0.89, f1_score: 0.91 },
-//   iso: { accuracy: 0.87, precision: 0.85, recall: 0.88, f1_score: 0.86 },
-//   auto: { accuracy: 0.88, precision: 0.9, recall: 0.87, f1_score: 0.89 },
-// };
-
-// renderGroupedBarChart(allModelStats);
+  if (comparisonChart) {
+    comparisonChart.data.datasets = datasets;
+    comparisonChart.update();
+  } else {
+    comparisonChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets,
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Model Performance Comparison",
+          },
+          legend: {
+            position: "top",
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 1,
+          },
+        },
+      },
+    });
+  }
+}
 
 // ========== Training Functions ==========
-async function trainModel(endpoint, modelName, resultId, metricId) {
+async function trainModel(endpoint, modelName, metricPrefix) {
   startLoading();
   try {
     const res = await fetch(endpoint, {
@@ -169,22 +176,26 @@ async function trainModel(endpoint, modelName, resultId, metricId) {
     });
     const data = await res.json();
 
-    if (resultId)
-      document.getElementById(resultId).textContent = JSON.stringify(
-        data,
-        null,
-        2
-      );
-    if (metricId && data) {
-      document.getElementById(metricId).textContent = `
-        Model: ${data.model || modelName}
-        Accuracy: ${(data.accuracy || 0).toFixed(2)}%
-        Precision: ${(data.precision || 0).toFixed(2)}
-        Recall: ${(data.recall || 0).toFixed(2)}
-        F1 Score: ${(data.f1_score || 0).toFixed(2)}
-        Train Samples: ${data.train_samples}
-        Test Samples: ${data.test_samples}
-      `.trim();
+    if (data.error) throw new Error(data.error);
+
+    const stats = data.stats ?? data; // fallback for direct stat returns
+
+    if (metricPrefix && stats) {
+      const keys = ["accuracy", "precision", "recall", "f1_score"];
+      for (const key of keys) {
+        const el = document.getElementById(`${metricPrefix}-${key}`);
+        if (el) el.textContent = (stats[key] ?? 0).toFixed(6);
+      }
+
+      // Optional: show confusion matrix or total anomalies
+      const anomalyRate = stats.anomaly_rate ?? stats.anomaly_percentage;
+      const total = stats.total;
+      const anomalyCount = stats.anomalies_detected;
+
+      const anomalyLabel = document.getElementById(`${metricPrefix}-anomaly-rate`);
+      if (anomalyLabel && anomalyRate != null) {
+        anomalyLabel.textContent = `${anomalyRate}% (${anomalyCount} / ${total})`;
+      }
     }
 
     showToast(data.message || `${modelName} trained.`);
@@ -196,35 +207,37 @@ async function trainModel(endpoint, modelName, resultId, metricId) {
   }
 }
 
+const trainRF = () => trainModel("/train/randomforest", "rf_model", "rf");
+const trainISO = () => trainModel("/train/isolationforest", "iso_model", "iso");
+
+
 async function trainAutoencoder() {
   startLoading();
   try {
     const res = await fetch("/train/autoencoder", { method: "POST" });
     const result = await res.json();
+    if (result.error) throw new Error(result.error);
 
-    const output = document.getElementById("auto-output");
+    showToast(result.message || "Autoencoder training completed.");
 
-    if (result.success) {
-      showToast(result.message || "Autoencoder training completed.");
-      output.textContent = `Autoencoder Training:\n${JSON.stringify(result, null, 2)}`;
-      await predictAutoencoder(); 
-    } else {
-      throw new Error(result.message || "Training failed.");
-    }
+    document.getElementById("auto-accuracy").textContent = (result.accuracy * 100).toFixed(2) + "%";
+    document.getElementById("auto-precision").textContent = (result.precision * 100).toFixed(2) + "%";
+    document.getElementById("auto-recall").textContent = (result.recall * 100).toFixed(2) + "%";
+    document.getElementById("auto-f1").textContent = (result.f1_score * 100).toFixed(2) + "%";
+    document.getElementById("auto-anomaly-rate").textContent = (result.anomaly_rate * 100).toFixed(2) + "%";
   } catch (error) {
     console.error("Error training autoencoder:", error);
-    document.getElementById("auto-output").textContent = "Autoencoder model already available.";
-    // showToast("Training failed for Autoencoder.");
+    showToast("Failed to train autoencoder.");
   } finally {
     stopLoading();
   }
 }
 
+
 async function predictAutoencoder() {
   try {
     const res = await fetch("/predict/autoencoder/all");
     const result = await res.json();
-
     const output = document.getElementById("auto-output");
 
     if (Array.isArray(result) && result.length > 0) {
@@ -240,14 +253,6 @@ async function predictAutoencoder() {
   }
 }
 
-
-const trainRF = () =>
-  trainModel("/train/randomforest", "rf_model", "trainRFResult", "rf-metrics");
-const trainISO = () =>
-  trainModel("/train/isolationforest", "iso_model", "trainISOResult");
-const trainCombined = () =>
-  trainModel("/train/combined", "rf_model.pkl", "trainCombinedResult");
-
 // ========== Evaluation Functions ==========
 async function evaluateModel(endpoint, resultId, modelName) {
   startLoading();
@@ -258,20 +263,16 @@ async function evaluateModel(endpoint, resultId, modelName) {
 
     if (Array.isArray(predictions) && predictions.length) {
       renderModelTable(predictions, "model-eval-head", "model-eval-body");
-      document.getElementById(
-        resultId
-      ).textContent = `${modelName} evaluated on ${predictions.length} samples.`;
+      document.getElementById(resultId).textContent = `${modelName} evaluated on ${predictions.length} samples.`;
       updateChartWithStats(stats);
     } else {
-      document.getElementById(
-        resultId
-      ).textContent = `No evaluation data available for ${modelName}.`;
+      document.getElementById(resultId).textContent = `No evaluation data available for ${modelName}.`;
       showToast(`No evaluation data for ${modelName}.`);
     }
     console.log(`${modelName} Evaluation Stats:`, stats);
   } catch (error) {
     console.error(`Error evaluating ${modelName}:`, error);
-    // showToast(`Failed to evaluate ${modelName}.`);
+    showToast(`Failed to evaluate ${modelName}.`);
   } finally {
     stopLoading();
   }
@@ -279,30 +280,9 @@ async function evaluateModel(endpoint, resultId, modelName) {
 
 const evaluateRF = () =>
   evaluateModel("/predict/randomforest/all", "rfEvalResult", "Random Forest");
-const evaluateISO = () =>
-  evaluateModel(
-    "/predict/isolationforest/all",
-    "isoEvalResult",
-    "Isolation Forest"
-  );
 
-async function evaluateCombined() {
-  try {
-    showSpinner();
-    const response = await fetch("/predict/combined");
-    const { stats } = await response.json();
-    document.getElementById("combinedEvalResult").textContent = JSON.stringify(
-      stats,
-      null,
-      2
-    );
-  } catch (error) {
-    console.error("Error evaluating combined model:", error);
-    alert("Error evaluating combined model.");
-  } finally {
-    hideSpinner();
-  }
-}
+const evaluateISO = () =>
+  evaluateModel("/predict/isolationforest/all", "isoEvalResult", "Isolation Forest");
 
 // ========== Utility Function ==========
 function renderModelTable(predictions, headId, bodyId) {
@@ -388,71 +368,6 @@ setActiveTab("dataset");
 //       stopLoading();
 //     }
 //   });
-
-let comparisonChart = null;
-
-async function fetchAndRenderMetrics() {
-  const canvas = document.getElementById("chart-comparison");
-
-  // If Chart.js attached a chart instance before, destroy it safely
-  if (Chart.getChart(canvas)) {
-    Chart.getChart(canvas).destroy();
-  }
-
-  try {
-    const response = await fetch("/api/metrics");
-    const data = await response.json();
-
-    const chartData = {
-      labels: data.labels || ["Accuracy", "Precision", "Recall", "F1"],
-      datasets: data.datasets || [
-        {
-          label: "Random Forest",
-          backgroundColor: "rgba(75,192,192,0.6)",
-          data: [0.94, 0.91, 0.92, 0.93]
-        },
-        {
-          label: "Isolation Forest",
-          backgroundColor: "rgba(153,102,255,0.6)",
-          data: [0.82, 0.79, 0.81, 0.80]
-        },
-        {
-          label: "Autoencoder",
-          backgroundColor: "rgba(255,159,64,0.6)",
-          data: [0.87, 0.85, 0.86, 0.86]
-        }
-      ]
-    };
-
-    const ctx = canvas.getContext("2d");
-    comparisonChart = new Chart(ctx, {
-      type: "bar",
-      data: chartData,
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: "Model Performance Comparison"
-          },
-          legend: {
-            display: true,
-            position: "bottom"
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 1
-          }
-        }
-      }
-    });
-  } catch (err) {
-    console.error("Error loading chart:", err);
-    showToast("Failed to load chart data: " + err.message);
-  }
-}
 
 document
   .getElementById("user-input-form")
