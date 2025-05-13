@@ -376,10 +376,20 @@ document
     const model = document.getElementById("model-select").value;
     const inputs = document.querySelectorAll("#input-fields input");
     const inputData = {};
+    let missingFields = [];
 
-    inputs.forEach(
-      (input) => (inputData[input.name] = parseFloat(input.value))
-    );
+    inputs.forEach((input) => {
+      if (!input.value.trim()) {
+        missingFields.push(input.name);
+      } else {
+        inputData[input.name] = parseFloat(input.value);
+      }
+    });
+
+    if (missingFields.length > 0) {
+      showToast(`Please fill in all fields: ${missingFields.join(", ")}`);
+      return;
+    }
 
     showSpinner();
     let endpoint = "";
@@ -393,6 +403,10 @@ document
       case "auto":
         endpoint = "/predict/autoencoder/manual";
         break;
+      default:
+        showToast("Invalid model selected.");
+        hideSpinner();
+        return;
     }
 
     try {
@@ -402,11 +416,16 @@ document
         body: JSON.stringify(inputData),
       });
       const result = await res.json();
+
       if (result.error) throw new Error(result.error);
 
-      document.getElementById(
-        "prediction-result"
-      ).innerText = `Prediction: ${result.label}`;
+      const predictionElement = document.getElementById("prediction-result");
+      predictionElement.innerHTML = `
+        <strong>${result.label}</strong><br />
+        ${result.confidence ? `Confidence: ${result.confidence}` : ""}
+      `;
+      predictionElement.style.color =
+        result.prediction === 1 ? "red" : "green";
     } catch (err) {
       showToast(`Prediction failed: ${err.message}`);
     } finally {

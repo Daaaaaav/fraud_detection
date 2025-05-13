@@ -9,7 +9,7 @@ import numpy as np
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model, load_and_predict_bulk
 from isolationforest import train_isolation_forest, detect_anomalies
-from autoencoder_backend import train_autoencoder, predict_autoencoder
+from autoencoder_backend import train_autoencoder, predict_autoencoder, predict_autoencoder_manual
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 app = Flask(__name__)
@@ -223,45 +223,37 @@ def predict_iso_manual():
 @app.route('/predict/autoencoder/manual', methods=['POST'])
 def predict_autoencoder_manual_route():
     try:
-        logging.info("Received request for /predict/autoencoder/manual")
         user_data = request.get_json(force=True)
-        logging.debug(f"User input: {user_data}")
 
-        input_values = [user_data[feature] for feature in FEATURE_ORDER]
+        missing = [f for f in FEATURE_ORDER if f not in user_data]
+        if missing:
+            return jsonify({'error': f"Missing features: {missing}"}), 400
+
+        try:
+            input_values = [float(user_data[feature]) for feature in FEATURE_ORDER]
+        except ValueError as ve:
+            return jsonify({'error': f"Invalid numeric input: {str(ve)}"}), 400
+
         prediction_data = predict_autoencoder_manual(input_values)
 
         if "error" in prediction_data:
             return jsonify({"error": prediction_data["error"]}), 500
 
-        prediction = int(prediction_data["is_fraud"])
+        prediction = prediction_data["is_fraud"]
+        confidence = prediction_data.get("confidence", None) 
+
         label = 'Fraudulent' if prediction == 1 else 'Not Fraudulent'
+        response = {'prediction': prediction, 'label': label}
 
-        return jsonify({'prediction': prediction, 'label': label})
+        if confidence is not None:
+            response['confidence'] = f"{confidence:.2%}"
+
+        return jsonify(response)
+
     except Exception as e:
-        logging.exception("Error in /predict/autoencoder/manual")
-        return jsonify({'error': str(e)}), 500
+        logging.exception("Unhandled error in /predict/autoencoder/manual")
+        return jsonify({'error': f"Internal server error: {str(e)}"}), 500
 
-def predict_autoencoder_manual(user_input):
-    try:
-        logging.info("Predicting using manual Autoencoder input")
-        model = tf.keras.models.load_model("models/autoencoder.h5", compile=False)
-        scaler = joblib.load("models/scaler.pkl")
-
-        X_manual = np.array(user_input).reshape(1, -1)
-        X_scaled = scaler.transform(X_manual)
-        X_pred = model.predict(X_scaled, verbose=0)
-
-        mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)[0]
-        with open("models/threshold.txt", "r") as f:
-            threshold = float(f.read())
-
-        is_fraud = mse > threshold
-        return {
-            "is_fraud": bool(is_fraud)
-        }
-    except Exception as e:
-        logging.exception("Error in predict_autoencoder_manual")
-        return {"error": str(e)}
 
 if __name__ == '__main__':
     app.run(debug=True, port=5006)
