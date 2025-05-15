@@ -3,8 +3,8 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import pandas as pd
 import joblib
-import tensorflow as tf
-import numpy as np
+import os
+from werkzeug.utils import secure_filename
 
 from preprocessing import preprocess_data
 from randomforest import train_and_save_model, load_and_predict_bulk
@@ -17,6 +17,10 @@ CORS(app)
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 FEATURE_ORDER = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
 
 @app.route('/')
@@ -27,9 +31,20 @@ def index():
 def preprocess():
     try:
         logging.info('Received request for /preprocess')
-        result = preprocess_data()
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
+
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+
+        result = preprocess_data(dataset_filename=file_path)
+
         logging.info('Preprocessing completed successfully')
-        logging.debug(f'Preprocessing result: {result}')
         return jsonify(result)
     except Exception as e:
         logging.error(f'Error in /preprocess: {e}')
@@ -70,6 +85,18 @@ def train_autoencoder_route():
         logging.error(f"Error training Autoencoder: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/train/all_models', methods=['POST'])
+def train_all_models():
+    rf_metrics = train_and_save_model()
+    iso_metrics = train_isolation_forest()
+    auto_metrics = train_autoencoder()
+
+    return jsonify({
+        "rf": rf_metrics,
+        "iso": iso_metrics,
+        "auto": auto_metrics
+    })
+
 @app.route('/predict/randomforest/all', methods=['GET'])
 def predict_rf_all():
     try:
@@ -107,34 +134,6 @@ def predict_rf_all():
     except Exception as e:
         logging.exception("Error in /predict/randomforest/all")
         return jsonify({'error': str(e)}), 500
-    
-@app.route('/train/all_models', methods=['POST'])
-def train_all_models():
-    rf_metrics = train_and_save_model()
-    iso_metrics = train_isolation_forest()
-    auto_metrics = train_autoencoder()
-
-    return jsonify({
-        "rf": {
-            "accuracy": rf_metrics["accuracy"],
-            "precision": rf_metrics["precision"],
-            "recall": rf_metrics["recall"],
-            "f1_score": rf_metrics["f1_score"]
-        },
-        "iso": {
-            "accuracy": iso_metrics["accuracy"],
-            "precision": iso_metrics["precision"],
-            "recall": iso_metrics["recall"],
-            "f1_score": iso_metrics["f1_score"]
-        },
-        "auto": {
-            "accuracy": auto_metrics["accuracy"],
-            "precision": auto_metrics["precision"],
-            "recall": auto_metrics["recall"],
-            "f1_score": auto_metrics["f1_score"]
-        }
-    })
-
 
 @app.route('/predict/isolationforest/all', methods=['GET'])
 def predict_iso_all():
@@ -150,7 +149,7 @@ def predict_iso_all():
 
         result_df = X.copy()
         result_df['Anomaly'] = predictions
-        result_df['Anomaly_Label'] = result_df['Anomaly'].map({1: 'Normal', -1: 'Anomaly (Possible Fraud)'})
+        result_df['Anomaly_Label'] = result_df['Anomaly'].map({1: 'Normal', -1: 'Anomaly (Possible Fraud)'} )
         result_df['Actual'] = df['Class']
         result_df['Actual_Label'] = result_df['Actual'].map({0: 'Not Fraudulent', 1: 'Fraudulent'})
 
@@ -212,7 +211,6 @@ def predict_iso_manual():
         df = pd.DataFrame([input_values], columns=FEATURE_ORDER)
 
         prediction = model.predict(df)[0]
-        # Isolation Forest uses -1 for anomaly
         label = 'Fraudulent' if prediction == -1 else 'Not Fraudulent'
 
         return jsonify({'prediction': int(prediction), 'label': label})
@@ -240,7 +238,7 @@ def predict_autoencoder_manual_route():
             return jsonify({"error": prediction_data["error"]}), 500
 
         prediction = prediction_data["is_fraud"]
-        confidence = prediction_data.get("confidence", None) 
+        confidence = prediction_data.get("confidence", None)
 
         label = 'Fraudulent' if prediction == 1 else 'Not Fraudulent'
         response = {'prediction': prediction, 'label': label}
@@ -253,7 +251,6 @@ def predict_autoencoder_manual_route():
     except Exception as e:
         logging.exception("Unhandled error in /predict/autoencoder/manual")
         return jsonify({'error': f"Internal server error: {str(e)}"}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5006)

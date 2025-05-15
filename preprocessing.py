@@ -7,10 +7,23 @@ from sklearn.utils.class_weight import compute_class_weight
 from imblearn.combine import SMOTETomek
 import joblib
 
-def preprocess_data():
+CURRENT_DATASET = None
+
+def preprocess_data(dataset_filename='creditcard.csv'):
+    global CURRENT_DATASET
     try:
+        # Get absolute path of the current script directory
         dir_path = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(dir_path, 'creditcard.csv')
+
+        # Full path to the dataset (supports both relative and absolute paths)
+        if os.path.isabs(dataset_filename):
+            file_path = dataset_filename
+        else:
+            file_path = os.path.join(dir_path, dataset_filename)
+
+        if not os.path.exists(file_path):
+            return {'error': f'Dataset "{dataset_filename}" not found at {file_path}.'}
+
         df = pd.read_csv(file_path)
 
         X = df.drop('Class', axis=1)
@@ -24,15 +37,19 @@ def preprocess_data():
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # Save scaler
-        joblib.dump(scaler, os.path.join(dir_path, 'scaler.pkl'))
-        np.save(os.path.join(dir_path, 'feature_names.npy'), X.columns.to_numpy())
+        # Safe file name from dataset
+        base_name = os.path.splitext(os.path.basename(dataset_filename))[0]
 
-        # Resample
+        # Save scaler and feature names
+        joblib.dump(scaler, os.path.join(dir_path, f'scaler_{base_name}.pkl'))
+        np.save(os.path.join(dir_path, f'feature_names_{base_name}.npy'), X.columns.to_numpy())
+
+        # Resample with SMOTETomek
         smote_tomek = SMOTETomek(random_state=42)
         X_train_resampled, y_train_resampled = smote_tomek.fit_resample(X_train_scaled, y_train)
 
-        np.savez('processed_data.npz',
+        # Save processed dataset
+        np.savez(os.path.join(dir_path, f'processed_{base_name}.npz'),
                  X_train=X_train_resampled,
                  X_test=X_test_scaled,
                  y_train=y_train_resampled,
@@ -44,13 +61,18 @@ def preprocess_data():
             y=y_train_resampled
         )
 
+        # Preview sample output
         sample_df = pd.DataFrame(X_train_resampled[:5], columns=X.columns)
         sample_df['Class'] = y_train_resampled[:5].values
+
+        # Update global tracker
+        CURRENT_DATASET = dataset_filename
 
         return {
             'sample': sample_df.to_dict(orient='records'),
             'info': {
-                'message': 'Preprocessing complete with SMOTETomek.',
+                'message': f'Preprocessing complete for {dataset_filename} with SMOTETomek.',
+                'dataset': dataset_filename,
                 'shapes': {
                     'X_train': X_train_resampled.shape,
                     'X_test': X_test_scaled.shape,
@@ -67,5 +89,6 @@ def preprocess_data():
                 }
             }
         }
+
     except Exception as e:
         return {'error': str(e)}

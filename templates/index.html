@@ -32,17 +32,18 @@
   <div id="loading-bar"></div>
 
   <main>
-    <section id="dataset" class="tab-content active">
-      <div class="card">
-        <h2>Dataset Preview</h2>
-        <button class="btn" onclick="loadData()">Load Dataset</button>
+  <section id="dataset" class="tab-content active">
+    <div class="card">
+      <h2>Dataset Preview</h2>
+      <input type="file" id="fileInput" accept=".csv" />
+      <button class="btn" id="loadBtn" onclick="loadData()">Load Dataset</button>
+
         <table>
           <thead id="table-head"></thead>
           <tbody id="table-body"></tbody>
         </table>
       </div>
     </section>
-
 
     <section id="train" class="tab-content">
       <div class="card">

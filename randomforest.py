@@ -14,7 +14,7 @@ def train_and_save_model(model_name='rf_model'):
 
     # Compute class weights
     class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
-    weights_dict = {0: class_weights[0], 1: class_weights[1]}
+    weights_dict = {i: w for i, w in enumerate(class_weights)}
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight=weights_dict)
     clf.fit(X_train, y_train)
@@ -34,6 +34,7 @@ def train_and_save_model(model_name='rf_model'):
     }
 
     return metrics
+
 
 def load_and_predict_bulk(model_path='rf_model.pkl'):
     model = joblib.load(model_path)

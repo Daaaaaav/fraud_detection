@@ -53,28 +53,54 @@ function setActiveTab(tabId) {
 
 // ========== Load Data into Table ==========
 async function loadData() {
+  const fileInput = document.getElementById('fileInput');
   const tableHead = document.getElementById('table-head');
   const tableBody = document.getElementById('table-body');
-  startLoading();
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert("Please choose a CSV file.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  document.getElementById('loadBtn').innerText = 'Loading...';
+  document.getElementById('loadBtn').disabled = true;
+
   try {
-    const response = await fetch('/preprocess', { method: 'POST' });
+    const response = await fetch('/preprocess', {
+      method: 'POST',
+      body: formData
+    });
+
     const result = await response.json();
 
-    if (Array.isArray(result.sample) && result.sample.length) {
-      const keys = Object.keys(result.sample[0]);
+    if (result.error) {
+      tableBody.innerHTML = `<tr><td colspan="100%">${result.error}</td></tr>`;
+      return;
+    }
+
+    const sample = result.sample;
+    if (Array.isArray(sample) && sample.length) {
+      const keys = Object.keys(sample[0]);
       tableHead.innerHTML = `<tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>`;
-      tableBody.innerHTML = result.sample.map(row => 
+      tableBody.innerHTML = sample.map(row =>
         `<tr>${keys.map(k => `<td>${row[k]}</td>`).join('')}</tr>`
       ).join('');
     } else {
       tableBody.innerHTML = `<tr><td colspan="100%">No data available</td></tr>`;
     }
+
     console.log('Preprocessing Info:', result.info);
+
   } catch (error) {
-    console.error('Error loading data:', error);
+    console.error('Error:', error);
     tableBody.innerHTML = `<tr><td colspan="100%">Error loading data.</td></tr>`;
   } finally {
-    stopLoading();
+    document.getElementById('loadBtn').innerText = 'Load Dataset';
+    document.getElementById('loadBtn').disabled = false;
   }
 }
 
