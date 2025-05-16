@@ -450,8 +450,10 @@ document
         <strong>${result.label}</strong><br />
         ${result.confidence ? `Confidence: ${result.confidence}` : ""}
       `;
-      predictionElement.style.color =
-        result.prediction === 1 ? "red" : "green";
+      const fraudModelsNegative = model === "iso"; 
+      let isFraud = fraudModelsNegative ? result.prediction === -1 : result.prediction === 1;
+
+      predictionElement.style.color = isFraud ? "red" : "green";
     } catch (err) {
       showToast(`Prediction failed: ${err.message}`);
     } finally {

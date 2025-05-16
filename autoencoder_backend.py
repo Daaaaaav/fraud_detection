@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 import joblib
 import logging
+from sklearn.metrics import mean_squared_error
+from imblearn.over_sampling import SMOTE
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
@@ -34,31 +36,29 @@ def load_data():
 
     return X_train_full_scaled, y_train_full, X_test_scaled, y_test, scaler
 
+
+from sklearn.metrics import mean_squared_error
+from imblearn.over_sampling import SMOTE
+
 def train_autoencoder():
     X_train_full_scaled, y_train_full, X_test_scaled, y_test, _ = load_data()
 
-    weights = class_weight.compute_class_weight(class_weight='balanced', classes=np.unique(y_train_full), y=y_train_full)
-    class_weights = dict(enumerate(weights))
+    X_normal = X_train_full_scaled[y_train_full == 0]
 
     input_dim = X_train_full_scaled.shape[1]
-
     input_layer = layers.Input(shape=(input_dim,))
-    x = layers.Dense(128, activation="relu")(input_layer)
-    x = layers.BatchNormalization()(x)
-    x = layers.Dense(64, activation="relu")(x)
-    x = layers.BatchNormalization()(x)
+    x = layers.Dense(64, activation="relu")(input_layer)
+    x = layers.Dropout(0.2)(x)
     x = layers.Dense(32, activation="relu")(x)
-    bottleneck = layers.Dense(24, activation="relu", name="bottleneck")(x)
+    x = layers.BatchNormalization()(x)
+    bottleneck = layers.Dense(16, activation="relu", name="bottleneck")(x)
     x = layers.Dense(32, activation="relu")(bottleneck)
-    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.2)(x)
     x = layers.Dense(64, activation="relu")(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.Dense(128, activation="relu")(x)
     output_layer = layers.Dense(input_dim, activation="linear")(x)
 
     autoencoder = tf.keras.Model(inputs=input_layer, outputs=output_layer)
-    autoencoder.compile(optimizer=Adam(learning_rate=1e-4), loss="mean_squared_error")
-
+    autoencoder.compile(optimizer=Adam(learning_rate=1e-4), loss="mse")
     encoder = tf.keras.Model(inputs=input_layer, outputs=bottleneck)
 
     checkpoint = ModelCheckpoint(filepath=MODEL_PATH, monitor='val_loss', save_best_only=True, verbose=1)
@@ -66,35 +66,45 @@ def train_autoencoder():
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
 
     autoencoder.fit(
-        X_train_full_scaled, X_train_full_scaled,
+        X_normal, X_normal,
         epochs=100,
         batch_size=256,
         shuffle=True,
         validation_split=0.2,
         callbacks=[checkpoint, early_stop, reduce_lr],
-        verbose=1,
-        class_weight={0: class_weights[0], 1: class_weights[1]}
+        verbose=1
     )
 
     autoencoder.load_weights(MODEL_PATH)
 
-    bottleneck_features_train = encoder.predict(X_train_full_scaled, verbose=0)
+    encoded_features_train = encoder.predict(X_train_full_scaled, verbose=0)
+    reconstructed_train = autoencoder.predict(X_train_full_scaled, verbose=0)
+
+    reconstruction_errors = np.mean(np.square(X_train_full_scaled - reconstructed_train), axis=1)
+    train_features_with_error = np.hstack((encoded_features_train, reconstruction_errors.reshape(-1, 1)))
+
+    smote = SMOTE(random_state=42)
+    X_balanced, y_balanced = smote.fit_resample(train_features_with_error, y_train_full)
+
     rf_clf = RandomForestClassifier(
         n_estimators=150,
         max_depth=12,
-        class_weight="balanced",
         random_state=42
     )
-    rf_clf.fit(bottleneck_features_train, y_train_full)
+    rf_clf.fit(X_balanced, y_balanced)
 
     joblib.dump(rf_clf, RF_PATH)
     encoder.save(BOTTLENECK_MODEL_PATH)
 
-    bottleneck_features_test = encoder.predict(X_test_scaled, verbose=0)
-    preds = rf_clf.predict(bottleneck_features_test)
+    encoded_test = encoder.predict(X_test_scaled, verbose=0)
+    reconstructed_test = autoencoder.predict(X_test_scaled, verbose=0)
+    reconstruction_errors_test = np.mean(np.square(X_test_scaled - reconstructed_test), axis=1)
+    test_features_with_error = np.hstack((encoded_test, reconstruction_errors_test.reshape(-1, 1)))
+
+    preds = rf_clf.predict(test_features_with_error)
 
     return {
-        "message": "Improved Autoencoder + Random Forest trained and evaluated.",
+        "message": "Autoencoder + RF with reconstruction error + SMOTE trained.",
         "accuracy": round(accuracy_score(y_test, preds), 4),
         "precision": round(precision_score(y_test, preds), 4),
         "recall": round(recall_score(y_test, preds), 4),
@@ -107,13 +117,19 @@ def predict_autoencoder():
     X = df.drop(columns=["Class"]).values
     y = df["Class"].values
 
-    model = tf.keras.models.load_model(BOTTLENECK_MODEL_PATH, compile=False)
+    encoder = tf.keras.models.load_model(BOTTLENECK_MODEL_PATH, compile=False)
+    autoencoder = tf.keras.models.load_model(MODEL_PATH, compile=False)
     rf_clf = joblib.load(RF_PATH)
     scaler = joblib.load(SCALER_PATH)
 
     X_scaled = scaler.transform(X)
-    bottleneck_features = model.predict(X_scaled, verbose=0)
-    predictions = rf_clf.predict(bottleneck_features)
+
+    bottleneck_features = encoder.predict(X_scaled, verbose=0)
+    reconstructed = autoencoder.predict(X_scaled, verbose=0)
+    reconstruction_errors = np.mean(np.square(X_scaled - reconstructed), axis=1)
+
+    features_with_error = np.hstack((bottleneck_features, reconstruction_errors.reshape(-1, 1)))
+    predictions = rf_clf.predict(features_with_error)
 
     df["Predicted"] = predictions
 
@@ -126,19 +142,26 @@ def predict_autoencoder():
     combined_sample = pd.concat([tp_sample, tn_sample]).sample(frac=1, random_state=99)
     return combined_sample.to_dict(orient="records")
 
+
 def predict_autoencoder_manual(user_input):
     try:
-        logging.info("Predicting using encoder + Random Forest pipeline")
+        logging.info("Predicting using encoder + reconstruction error + Random Forest")
 
         scaler = joblib.load(SCALER_PATH)
         encoder = tf.keras.models.load_model(BOTTLENECK_MODEL_PATH, compile=False)
+        autoencoder = tf.keras.models.load_model(MODEL_PATH, compile=False)
         rf_clf = joblib.load(RF_PATH)
 
         input_array = np.array(user_input).reshape(1, -1)
         scaled_input = scaler.transform(input_array)
-        bottleneck_features = encoder.predict(scaled_input, verbose=0)
 
-        prediction = rf_clf.predict(bottleneck_features)[0]
+        bottleneck_features = encoder.predict(scaled_input, verbose=0)
+        reconstructed = autoencoder.predict(scaled_input, verbose=0)
+        reconstruction_error = np.mean(np.square(scaled_input - reconstructed), axis=1).reshape(-1, 1)
+
+        features_with_error = np.hstack((bottleneck_features, reconstruction_error))
+
+        prediction = rf_clf.predict(features_with_error)[0]
 
         return {
             "is_fraud": int(prediction)
@@ -147,3 +170,4 @@ def predict_autoencoder_manual(user_input):
     except Exception as e:
         logging.exception("Error in predict_autoencoder_manual")
         return {"error": str(e)}
+
