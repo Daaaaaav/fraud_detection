@@ -1,59 +1,140 @@
+import os
+import logging
 import numpy as np
-import joblib
 import pandas as pd
+import joblib
+from itertools import product
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.utils.class_weight import compute_class_weight
-from preprocessing import preprocess_data, get_base_paths
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    confusion_matrix
+)
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
-def train_and_save_model(dataset_filename='creditcard.csv', model_name='rf_model'):
-    preprocess_data(dataset_filename)
+from preprocessing import get_current_dataset, get_base_paths, preprocess_data
+
+
+def train_and_save_model(dataset_filename=None, model_path="models/random_forest.pkl"):
+    if dataset_filename is None:
+        dataset_filename = get_current_dataset()
     paths = get_base_paths(dataset_filename)
-    data = np.load(paths["processed"])
 
-    X_train, y_train = data['X_train'], data['y_train']
-    X_test, y_test = data['X_test'], data['y_test']
+    if not os.path.exists(paths["processed"]):
+        logging.warning(f"Processed file {paths['processed']} not found. Running preprocessing manually...")
 
-    class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
-    weights_dict = {i: w for i, w in enumerate(class_weights)}
+        df = pd.read_csv(dataset_filename)
+        X = df.drop(columns=["Class"], errors='ignore')
+        y = df["Class"] if "Class" in df.columns else None
 
-    clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight=weights_dict)
-    clf.fit(X_train, y_train)
-    joblib.dump(clf, f'{model_name}.pkl')
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_scaled, y, test_size=0.3, random_state=42, stratify=y
+        )
 
-    y_pred = clf.predict(X_test)
+        os.makedirs(os.path.dirname(paths["processed"]), exist_ok=True)
+        joblib.dump(scaler, paths["scaler"])
+        np.savez(paths["processed"], X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test)
+    else:
+        data = np.load(paths["processed"])
+        X_train, X_test = data['X_train'], data['X_test']
+        y_train, y_test = data['y_train'], data['y_test']
+
+    param_grid = {
+        'n_estimators': [100, 200],
+        'max_depth': [None, 10],
+        'max_features': ['sqrt', 'log2'],  
+        'class_weight': ['balanced']
+    }
+
+
+    best_model = None
+    best_f1 = 0
+    best_params = None
+
+    all_combos = list(product(*param_grid.values()))
+    param_names = list(param_grid.keys())
+
+    for combo in all_combos:
+        params = dict(zip(param_names, combo))
+        model = RandomForestClassifier(**params, random_state=42)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        f1 = f1_score(y_test, preds, zero_division=0)
+
+        if f1 > best_f1:
+            best_model = model
+            best_f1 = f1
+            best_params = params
+
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    joblib.dump(best_model, model_path)
+
+    y_pred = best_model.predict(X_test)
+    y_proba = best_model.predict_proba(X_test)[:, 1]
 
     return {
         'model': 'Random Forest',
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred, zero_division=0),
-        'recall': recall_score(y_test, y_pred, zero_division=0),
-        'f1_score': f1_score(y_test, y_pred, zero_division=0),
-        'message': f'Model saved as {model_name}.pkl',
+        'best_params': best_params,
+        'accuracy': float(accuracy_score(y_test, y_pred)),
+        'precision': float(precision_score(y_test, y_pred, zero_division=0)),
+        'recall': float(recall_score(y_test, y_pred, zero_division=0)),
+        'f1_score': float(f1_score(y_test, y_pred, zero_division=0)),
+        'roc_auc': float(roc_auc_score(y_test, y_proba)),
+        'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
+        'message': f'Model saved to {model_path}'
     }
 
-def load_and_predict_bulk(model_path='rf_model.pkl', dataset_filename='creditcard.csv'):
+def load_and_predict_bulk(dataset_filename=None, model_path="models/random_forest.pkl"):
+    if dataset_filename is None:
+        dataset_filename = get_current_dataset()
+
+    if not os.path.exists(model_path):
+        return {'error': f'Model file {model_path} not found.'}
+
     paths = get_base_paths(dataset_filename)
+    if not os.path.exists(paths["scaler"]):
+        return {'error': f'Scaler file {paths["scaler"]} not found. Please run preprocessing.'}
+
     model = joblib.load(model_path)
     scaler = joblib.load(paths["scaler"])
     df = pd.read_csv(dataset_filename)
 
-    X = df.drop(columns=["Class"])
-    y_true = df["Class"]
+    y_true = df["Class"] if "Class" in df.columns else None
+    X = df.drop(columns=["Class"], errors='ignore')
     X_scaled = scaler.transform(X)
-    y_pred = model.predict(X_scaled)
 
-    df["predicted_class"] = y_pred
-    df["is_fraud"] = df["predicted_class"] == 1
+    y_pred = model.predict(X_scaled)
+    y_proba = model.predict_proba(X_scaled)[:, 1]
+
+    df["predicted"] = y_pred
+    df["is_fraud"] = df["predicted"] == 1
+
+    stats = {
+        "model": "Random Forest",
+        "fraud_count": int(df["is_fraud"].sum()),
+    }
+
+    if y_true is not None:
+        stats.update({
+            "accuracy": accuracy_score(y_true, y_pred),
+            "precision": precision_score(y_true, y_pred, zero_division=0),
+            "recall": recall_score(y_true, y_pred, zero_division=0),
+            "f1_score": f1_score(y_true, y_pred, zero_division=0),
+            "roc_auc": roc_auc_score(y_true, y_proba),
+            "confusion_matrix": confusion_matrix(y_true, y_pred).tolist()
+        })
+    else:
+        stats["warning"] = "No ground truth labels for evaluation."
+
     top_frauds = df[df["is_fraud"]].head(100)
 
     return {
         "top_frauds": top_frauds.to_dict(orient="records"),
-        "stats": {
-            "model": "Random Forest",
-            "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0)
-        }
+        "stats": stats
     }

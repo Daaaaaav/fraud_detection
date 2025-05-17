@@ -52,7 +52,13 @@ def train_rf():
     try:
         data = request.get_json(force=True)
         model_name = data.get('name', 'rf_model')
-        result = train_and_save_model(model_name)
+
+        if not model_name.endswith('.pkl'):
+            model_path = os.path.join('models', model_name + '.pkl')
+        else:
+            model_path = os.path.join('models', model_name)
+
+        result = train_and_save_model(model_path=model_path)
         return jsonify(result)
     except Exception as e:
         logging.exception('Error in /train/randomforest')
@@ -95,7 +101,7 @@ def train_all_models():
 @app.route('/predict/randomforest/all', methods=['GET'])
 def predict_rf_all():
     try:
-        model_path = request.args.get('model', 'rf_model.pkl')
+        model_path = request.args.get('model', 'models/random_forest.pkl')
         model = joblib.load(model_path)
 
         df = pd.read_csv('creditcard.csv')
@@ -170,7 +176,7 @@ def predict_autoencoder_route():
 @app.route('/predict/randomforest/manual', methods=['POST'])
 def predict_rf_manual():
     try:
-        model = joblib.load('rf_model.pkl')
+        model = joblib.load('models/random_forest.pkl')
         user_data = request.get_json(force=True)
 
         input_values = [user_data[feature] for feature in FEATURE_ORDER]

@@ -204,7 +204,7 @@ async function trainModel(endpoint, modelName, metricPrefix) {
 
     if (data.error) throw new Error(data.error);
 
-    const stats = data.stats ?? data; // fallback for direct stat returns
+    const stats = data.stats ?? data; 
 
     if (metricPrefix && stats) {
       const keys = ["accuracy", "precision", "recall", "f1_score"];
@@ -213,7 +213,6 @@ async function trainModel(endpoint, modelName, metricPrefix) {
         if (el) el.textContent = (stats[key] ?? 0).toFixed(6);
       }
 
-      // Optional: show confusion matrix or total anomalies
       const anomalyRate = stats.anomaly_rate ?? stats.anomaly_percentage;
       const total = stats.total;
       const anomalyCount = stats.anomalies_detected;
@@ -233,7 +232,7 @@ async function trainModel(endpoint, modelName, metricPrefix) {
   }
 }
 
-const trainRF = () => trainModel("/train/randomforest", "rf_model", "rf");
+const trainRF = () => trainModel("/train/randomforest", "models/random_forest", "rf");
 const trainISO = () => trainModel("/train/isolationforest", "iso_model", "iso");
 
 

@@ -15,29 +15,36 @@ from tensorflow.keras import layers
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
 
-# File paths
+from preprocessing import preprocess_data, get_current_dataset
+
 MODEL_PATH = "models/autoencoder.h5"
 RF_PATH = "models/random_forest.pkl"
 BOTTLENECK_MODEL_PATH = "models/encoder.h5"
 SCALER_PATH = "models/scaler.pkl"
-DATA_PATH = "creditcard.csv"
 
-def load_dataset():
-    df = pd.read_csv(DATA_PATH)
+def load_dataset(dataset_filename=None):
+    if dataset_filename is None:
+        dataset_filename = get_current_dataset()
+    if dataset_filename is None:
+        raise ValueError("Dataset not set. Please run preprocess_data first.")
+
+    df = pd.read_csv(dataset_filename)
     X = df.drop(columns=["Class"]).values
     y = df["Class"].values
-    return X, y
+    return X, y, df
 
-def preprocess_data():
-    X, y = load_dataset()
+def preprocess_autoencoder_data(dataset_filename=None):
+    X, y, _ = load_dataset(dataset_filename)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )
     scaler = MinMaxScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+
     joblib.dump(scaler, SCALER_PATH)
-    return X_train_scaled, y_train, X_test_scaled, y_test
+
+    return X_train_scaled, X_test_scaled, y_train, y_test
 
 def build_autoencoder(input_dim):
     input_layer = layers.Input(shape=(input_dim,))
@@ -70,25 +77,20 @@ def load_models():
     scaler = joblib.load(SCALER_PATH)
     return encoder, autoencoder, rf_clf, scaler
 
-
-### --- Training Function --- ###
-
 def train_autoencoder():
-    X_train_scaled, y_train, X_test_scaled, y_test = preprocess_data()
+    X_train_scaled, X_test_scaled, y_train, y_test = preprocess_autoencoder_data()
 
     X_train_normal = X_train_scaled[y_train == 0]
     input_dim = X_train_scaled.shape[1]
 
     autoencoder, encoder = build_autoencoder(input_dim)
 
-    # Training callbacks
     callbacks = [
         ModelCheckpoint(MODEL_PATH, monitor="val_loss", save_best_only=True, verbose=1),
         EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True),
         ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, verbose=1)
     ]
 
-    # Train autoencoder
     autoencoder.fit(
         X_train_normal, X_train_normal,
         validation_split=0.2,
@@ -101,7 +103,6 @@ def train_autoencoder():
 
     autoencoder.load_weights(MODEL_PATH)
 
-    # Train Random Forest on encoded features + reconstruction error
     encoded_train = encoder.predict(X_train_scaled, verbose=0)
     reconstructed_train = autoencoder.predict(X_train_scaled, verbose=0)
     errors_train = compute_reconstruction_error(X_train_scaled, reconstructed_train)
@@ -115,7 +116,6 @@ def train_autoencoder():
     joblib.dump(rf_clf, RF_PATH)
     encoder.save(BOTTLENECK_MODEL_PATH)
 
-    # Evaluation
     encoded_test = encoder.predict(X_test_scaled, verbose=0)
     reconstructed_test = autoencoder.predict(X_test_scaled, verbose=0)
     errors_test = compute_reconstruction_error(X_test_scaled, reconstructed_test)
@@ -124,7 +124,6 @@ def train_autoencoder():
     preds = rf_clf.predict(features_test)
 
     return {
-        "message": "Autoencoder + RF trained successfully.",
         "accuracy": round(accuracy_score(y_test, preds), 4),
         "precision": round(precision_score(y_test, preds), 4),
         "recall": round(recall_score(y_test, preds), 4),
@@ -132,11 +131,8 @@ def train_autoencoder():
         "anomaly_rate": round(np.mean(preds), 4)
     }
 
-
-### --- Prediction Functions --- ###
-
 def predict_autoencoder():
-    X, y = load_dataset()
+    X, y, df = load_dataset()
     encoder, autoencoder, rf_clf, scaler = load_models()
     X_scaled = scaler.transform(X)
 
@@ -146,10 +142,8 @@ def predict_autoencoder():
     features = augment_with_error(bottleneck, error)
 
     preds = rf_clf.predict(features)
-    df = pd.read_csv(DATA_PATH)
     df["Predicted"] = preds
 
-    # Get samples for preview
     true_pos = df[(df["Class"] == 1) & (df["Predicted"] == 1)]
     true_neg = df[(df["Class"] == 0) & (df["Predicted"] == 0)]
 
@@ -159,11 +153,8 @@ def predict_autoencoder():
     sample = pd.concat([sample_tp, sample_tn]).sample(frac=1, random_state=99)
     return sample.to_dict(orient="records")
 
-
 def predict_autoencoder_manual(user_input):
     try:
-        logging.info("Manual prediction using Autoencoder + RF")
-
         encoder, autoencoder, rf_clf, scaler = load_models()
 
         input_array = np.array(user_input).reshape(1, -1)
@@ -174,9 +165,11 @@ def predict_autoencoder_manual(user_input):
         error = compute_reconstruction_error(scaled_input, reconstructed).reshape(-1, 1)
 
         features = augment_with_error(bottleneck, error)
-        prediction = rf_clf.predict(features)[0]
+        probs = rf_clf.predict_proba(features)[0]
+        prediction = int(np.argmax(probs))
+        confidence = probs[prediction]
 
-        return {"is_fraud": int(prediction)}
+        return {"is_fraud": prediction, "confidence": confidence}
 
     except Exception as e:
         logging.exception("Error in predict_autoencoder_manual")
