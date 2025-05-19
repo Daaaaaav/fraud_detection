@@ -1,14 +1,14 @@
-import numpy as np
-import pandas as pd
+import os
 import json
 import joblib
-import os
+import numpy as np
+import pandas as pd
 
 from itertools import product
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, confusion_matrix
+    accuracy_score, precision_score, recall_score,
+    f1_score, roc_auc_score, confusion_matrix
 )
 
 from preprocessing import get_current_dataset, get_base_paths
@@ -46,12 +46,15 @@ def train_isolation_forest(dataset_filename=None, model_path='models/isolation_f
             if f1 > best_f1:
                 best_model, best_f1, best_thresh, best_params = model, f1, t, params
 
+    # Save model and threshold
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     joblib.dump(best_model, model_path)
 
+    os.makedirs(os.path.dirname(threshold_path), exist_ok=True)
     with open(threshold_path, "w") as f:
         json.dump({"best_threshold": float(best_thresh)}, f)
 
+    # Evaluate
     final_scores = -best_model.decision_function(X_test)
     final_preds = (final_scores > best_thresh).astype(int)
 
@@ -90,6 +93,7 @@ def detect_anomalies(dataset_filename=None, model_path='models/isolation_forest_
     X_scaled = scaler.transform(X)
     scores = -model.decision_function(X_scaled)
 
+    # Load threshold
     if os.path.exists(threshold_path):
         with open(threshold_path) as f:
             best_thresh = json.load(f)["best_threshold"]
@@ -97,7 +101,6 @@ def detect_anomalies(dataset_filename=None, model_path='models/isolation_forest_
         best_thresh = np.percentile(scores, 99)
 
     preds = (scores > best_thresh).astype(int)
-
     df["predicted"] = preds
     df["is_fraud"] = preds == 1
 
@@ -108,10 +111,10 @@ def detect_anomalies(dataset_filename=None, model_path='models/isolation_forest_
 
     if y_true is not None:
         stats.update({
-            "accuracy": accuracy_score(y_true, preds),
-            "precision": precision_score(y_true, preds, zero_division=0),
-            "recall": recall_score(y_true, preds, zero_division=0),
-            "f1_score": f1_score(y_true, preds, zero_division=0),
+            "accuracy": float(accuracy_score(y_true, preds)),
+            "precision": float(precision_score(y_true, preds, zero_division=0)),
+            "recall": float(recall_score(y_true, preds, zero_division=0)),
+            "f1_score": float(f1_score(y_true, preds, zero_division=0)),
             "confusion_matrix": confusion_matrix(y_true, preds).tolist()
         })
     else:

@@ -1,10 +1,11 @@
 import os
-import logging
 import numpy as np
 import pandas as pd
 import joblib
 from itertools import product
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -13,45 +14,51 @@ from sklearn.metrics import (
     roc_auc_score,
     confusion_matrix
 )
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-
-from preprocessing import get_current_dataset, get_base_paths, preprocess_data
-
+from preprocessing import get_current_dataset, get_base_paths, preprocess_data  # Adjust based on your project structure
 
 def train_and_save_model(dataset_filename=None, model_path="models/random_forest.pkl"):
     if dataset_filename is None:
         dataset_filename = get_current_dataset()
     paths = get_base_paths(dataset_filename)
 
-    if not os.path.exists(paths["processed"]):
-        logging.warning(f"Processed file {paths['processed']} not found. Running preprocessing manually...")
+    # Load dataset manually (assuming it's a CSV)
+    df = pd.read_csv(dataset_filename)
 
-        df = pd.read_csv(dataset_filename)
-        X = df.drop(columns=["Class"], errors='ignore')
-        y = df["Class"] if "Class" in df.columns else None
+    if 'Class' not in df.columns:
+        raise ValueError("Dataset must contain a 'Class' column as the target.")
 
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=0.3, random_state=42, stratify=y
-        )
+    X = df.drop(columns=['Class'])
+    y = df['Class']
 
-        os.makedirs(os.path.dirname(paths["processed"]), exist_ok=True)
-        joblib.dump(scaler, paths["scaler"])
-        np.savez(paths["processed"], X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test)
-    else:
-        data = np.load(paths["processed"])
-        X_train, X_test = data['X_train'], data['X_test']
-        y_train, y_test = data['y_train'], data['y_test']
+    # Ensure only numeric features are used
+    if not isinstance(X, pd.DataFrame):
+        raise ValueError("Expected X to be a pandas DataFrame.")
+    X = X.select_dtypes(include=[np.number])
 
+    # Feature scaling
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Save the scaler
+    os.makedirs(os.path.dirname(paths["scaler"]), exist_ok=True)
+    joblib.dump(scaler, paths["scaler"])
+
+    # Train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    # Save preprocessed data
+    os.makedirs(os.path.dirname(paths["processed"]), exist_ok=True)
+    np.savez(paths["processed"], X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test)
+
+    # Hyperparameter grid
     param_grid = {
         'n_estimators': [100, 200],
         'max_depth': [None, 10],
-        'max_features': ['sqrt', 'log2'],  
+        'max_features': ['sqrt', 'log2'],
         'class_weight': ['balanced']
     }
-
 
     best_model = None
     best_f1 = 0
@@ -72,6 +79,7 @@ def train_and_save_model(dataset_filename=None, model_path="models/random_forest
             best_f1 = f1
             best_params = params
 
+    # Save the best model
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     joblib.dump(best_model, model_path)
 
@@ -89,6 +97,7 @@ def train_and_save_model(dataset_filename=None, model_path="models/random_forest
         'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
         'message': f'Model saved to {model_path}'
     }
+
 
 def load_and_predict_bulk(dataset_filename=None, model_path="models/random_forest.pkl"):
     if dataset_filename is None:

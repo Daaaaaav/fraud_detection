@@ -97,3 +97,17 @@ def preprocess_data(dataset_filename=None):
             'class_weights': class_weight_dict
         }
     }
+
+def load_preprocessed(dataset_filename):
+    paths = get_base_paths(dataset_filename)
+
+    if not os.path.exists(paths["processed"]):
+        return {'error': f'Processed file not found for {dataset_filename}. Run preprocess_data() first.'}
+
+    try:
+        data = np.load(paths["processed"])
+        X_train = data['X_train']
+        y_train = data['y_train']
+        return X_train, y_train
+    except Exception as e:
+        return {'error': f'Failed to load processed dataset: {str(e)}'}
