@@ -6,14 +6,14 @@ import joblib
 import logging
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, log_loss
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.utils import class_weight
+from sklearn.preprocessing import MinMaxScaler
 from imblearn.over_sampling import SMOTE
 from tensorflow.keras import layers
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import MeanSquaredError  
 
 from preprocessing import preprocess_data, get_current_dataset
 
@@ -25,9 +25,6 @@ SCALER_PATH = "models/scaler.pkl"
 def load_dataset(dataset_filename=None):
     if dataset_filename is None:
         dataset_filename = get_current_dataset()
-    if dataset_filename is None:
-        raise ValueError("Dataset not set. Please run preprocess_data first.")
-
     df = pd.read_csv(dataset_filename)
     X = df.drop(columns=["Class"]).values
     y = df["Class"].values
@@ -41,9 +38,7 @@ def preprocess_autoencoder_data(dataset_filename=None):
     scaler = MinMaxScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-
     joblib.dump(scaler, SCALER_PATH)
-
     return X_train_scaled, X_test_scaled, y_train, y_test
 
 def build_autoencoder(input_dim):
@@ -57,11 +52,10 @@ def build_autoencoder(input_dim):
     x = layers.Dropout(0.2)(x)
     x = layers.Dense(64, activation="relu")(x)
     output_layer = layers.Dense(input_dim, activation="linear")(x)
-
     autoencoder = tf.keras.Model(inputs=input_layer, outputs=output_layer)
     encoder = tf.keras.Model(inputs=input_layer, outputs=bottleneck)
-    autoencoder.compile(optimizer=Adam(1e-4), loss="mse")
-
+    
+    autoencoder.compile(optimizer=Adam(1e-4), loss=MeanSquaredError())
     return autoencoder, encoder
 
 def compute_reconstruction_error(original, reconstructed):
@@ -79,57 +73,29 @@ def load_models():
 
 def train_autoencoder():
     X_train_scaled, X_test_scaled, y_train, y_test = preprocess_autoencoder_data()
-
     X_train_normal = X_train_scaled[y_train == 0]
     input_dim = X_train_scaled.shape[1]
 
-    autoencoder, encoder = build_autoencoder(input_dim)
+    X_train_scaled, X_test_scaled, y_train, y_test = preprocess_autoencoder_data()
+    
+    autoencoder, encoder = build_autoencoder(X_train_scaled.shape[1])
+    autoencoder.fit(X_train_scaled[y_train == 0], X_train_scaled[y_train == 0], epochs=50, batch_size=256, verbose=1)
+    
+    encoder.save(BOTTLENECK_MODEL_PATH)
+    autoencoder.save(MODEL_PATH)
 
-    callbacks = [
-        ModelCheckpoint(MODEL_PATH, monitor="val_loss", save_best_only=True, verbose=1),
-        EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True),
-        ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, verbose=1)
-    ]
+    bottleneck_train = encoder.predict(X_train_scaled)
+    reconstructed_train = autoencoder.predict(X_train_scaled)
+    error_train = compute_reconstruction_error(X_train_scaled, reconstructed_train)
+    features_train = augment_with_error(bottleneck_train, error_train)
 
-    autoencoder.fit(
-        X_train_normal, X_train_normal,
-        validation_split=0.2,
-        epochs=100,
-        batch_size=256,
-        shuffle=True,
-        callbacks=callbacks,
-        verbose=1
-    )
+    smote = SMOTE(random_state=42)
+    features_resampled, y_resampled = smote.fit_resample(features_train, y_train)
 
-    autoencoder.load_weights(MODEL_PATH)
-
-    encoded_train = encoder.predict(X_train_scaled, verbose=0)
-    reconstructed_train = autoencoder.predict(X_train_scaled, verbose=0)
-    errors_train = compute_reconstruction_error(X_train_scaled, reconstructed_train)
-    features_train = augment_with_error(encoded_train, errors_train)
-
-    X_balanced, y_balanced = SMOTE(random_state=42).fit_resample(features_train, y_train)
-
-    rf_clf = RandomForestClassifier(n_estimators=150, max_depth=12, random_state=42)
-    rf_clf.fit(X_balanced, y_balanced)
+    rf_clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_clf.fit(features_resampled, y_resampled)
 
     joblib.dump(rf_clf, RF_PATH)
-    encoder.save(BOTTLENECK_MODEL_PATH)
-
-    encoded_test = encoder.predict(X_test_scaled, verbose=0)
-    reconstructed_test = autoencoder.predict(X_test_scaled, verbose=0)
-    errors_test = compute_reconstruction_error(X_test_scaled, reconstructed_test)
-    features_test = augment_with_error(encoded_test, errors_test)
-
-    preds = rf_clf.predict(features_test)
-
-    return {
-        "accuracy": round(accuracy_score(y_test, preds), 4),
-        "precision": round(precision_score(y_test, preds), 4),
-        "recall": round(recall_score(y_test, preds), 4),
-        "f1_score": round(f1_score(y_test, preds), 4),
-        "anomaly_rate": round(np.mean(preds), 4)
-    }
 
 def predict_autoencoder():
     X, y, df = load_dataset()
@@ -167,7 +133,7 @@ def predict_autoencoder_manual(user_input):
         features = augment_with_error(bottleneck, error)
         probs = rf_clf.predict_proba(features)[0]
         prediction = int(np.argmax(probs))
-        confidence = probs[prediction]
+        confidence = float(probs[prediction])
 
         return {"is_fraud": prediction, "confidence": confidence}
 

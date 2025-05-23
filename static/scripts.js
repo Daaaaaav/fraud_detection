@@ -104,58 +104,68 @@ async function loadData() {
   }
 }
 
-async function trainAllModelsAndRenderChart() {
-  startLoading();
-  try {
-    const res = await fetch("/train/all_models", { method: "POST" });
-    const data = await res.json();
-    renderGroupedBarChart(data);
-    showToast("All models trained and metrics updated.");
-  } catch (err) {
-    console.error("Failed to train models or fetch metrics:", err);
-    showToast("Error training models.");
-  } finally {
-    stopLoading();
+const METRIC_LABELS = ["Accuracy", "Precision", "Recall", "F1 Score"];
+let comparisonChart = null;
+
+// ========================= Utility Functions =========================
+
+function startLoading() {
+  document.body.classList.add("loading");
+}
+
+function stopLoading() {
+  document.body.classList.remove("loading");
+}
+
+function showToast(message) {
+  alert(message); 
+}
+
+function updateMetrics(stats, prefix) {
+  const keys = ["accuracy", "precision", "recall", "f1_score"];
+  keys.forEach((key) => {
+    const el = document.getElementById(`${prefix}-${key}`);
+    if (el) el.textContent = ((stats[key] ?? 0) * 100).toFixed(2) + "%";
+  });
+
+  const anomalyRate = stats.anomaly_rate ?? stats.anomaly_percentage;
+  const total = stats.total;
+  const anomalyCount = stats.anomalies_detected;
+  const anomalyLabel = document.getElementById(`${prefix}-anomaly-rate`);
+  if (anomalyLabel && anomalyRate != null) {
+    anomalyLabel.textContent = `${(anomalyRate * 100).toFixed(2)}% (${anomalyCount} / ${total})`;
   }
 }
 
-let comparisonChart = null;
+function getMetric(metrics, model, key) {
+  return metrics[model]?.[key] ?? 0;
+}
+
+// ========================= Chart Rendering =========================
 
 function renderGroupedBarChart(metrics) {
   const ctx = document.getElementById("chart-comparison").getContext("2d");
 
-  const labels = ["Accuracy", "Precision", "Recall", "F1 Score"];
+  if (!metrics.rf && !metrics.iso && !metrics.auto) {
+    showToast("No model metrics available.");
+    return;
+  }
 
   const datasets = [
     {
       label: "Random Forest",
       backgroundColor: "#4caf50",
-      data: [
-        metrics.rf?.accuracy ?? 0,
-        metrics.rf?.precision ?? 0,
-        metrics.rf?.recall ?? 0,
-        metrics.rf?.f1_score ?? 0,
-      ],
+      data: ["accuracy", "precision", "recall", "f1_score"].map(key => getMetric(metrics, "rf", key)),
     },
     {
       label: "Isolation Forest",
       backgroundColor: "#2196f3",
-      data: [
-        metrics.iso?.accuracy ?? 0,
-        metrics.iso?.precision ?? 0,
-        metrics.iso?.recall ?? 0,
-        metrics.iso?.f1_score ?? 0,
-      ],
+      data: ["accuracy", "precision", "recall", "f1_score"].map(key => getMetric(metrics, "iso", key)),
     },
     {
       label: "Autoencoder",
       backgroundColor: "#ff9800",
-      data: [
-        metrics.auto?.accuracy ?? 0,
-        metrics.auto?.precision ?? 0,
-        metrics.auto?.recall ?? 0,
-        metrics.auto?.f1_score ?? 0,
-      ],
+      data: ["accuracy", "precision", "recall", "f1_score"].map(key => getMetric(metrics, "auto", key)),
     },
   ];
 
@@ -166,7 +176,7 @@ function renderGroupedBarChart(metrics) {
     comparisonChart = new Chart(ctx, {
       type: "bar",
       data: {
-        labels,
+        labels: METRIC_LABELS,
         datasets,
       },
       options: {
@@ -191,7 +201,23 @@ function renderGroupedBarChart(metrics) {
   }
 }
 
-// ========== Training Functions ==========
+// ========================= Training Functions =========================
+
+async function trainAllModelsAndRenderChart() {
+  startLoading();
+  try {
+    const res = await fetch("/train/all_models", { method: "POST" });
+    const data = await res.json();
+    renderGroupedBarChart(data);
+    showToast("All models trained and metrics updated.");
+  } catch (err) {
+    console.error("Failed to train models or fetch metrics:", err);
+    showToast("Error training models.");
+  } finally {
+    stopLoading();
+  }
+}
+
 async function trainModel(endpoint, modelName, metricPrefix) {
   startLoading();
   try {
@@ -204,23 +230,9 @@ async function trainModel(endpoint, modelName, metricPrefix) {
 
     if (data.error) throw new Error(data.error);
 
-    const stats = data.stats ?? data; 
-
+    const stats = data.stats ?? data;
     if (metricPrefix && stats) {
-      const keys = ["accuracy", "precision", "recall", "f1_score"];
-      for (const key of keys) {
-        const el = document.getElementById(`${metricPrefix}-${key}`);
-        if (el) el.textContent = (stats[key] ?? 0).toFixed(6);
-      }
-
-      const anomalyRate = stats.anomaly_rate ?? stats.anomaly_percentage;
-      const total = stats.total;
-      const anomalyCount = stats.anomalies_detected;
-
-      const anomalyLabel = document.getElementById(`${metricPrefix}-anomaly-rate`);
-      if (anomalyLabel && anomalyRate != null) {
-        anomalyLabel.textContent = `${anomalyRate}% (${anomalyCount} / ${total})`;
-      }
+      updateMetrics(stats, metricPrefix);
     }
 
     showToast(data.message || `${modelName} trained.`);
@@ -235,7 +247,6 @@ async function trainModel(endpoint, modelName, metricPrefix) {
 const trainRF = () => trainModel("/train/randomforest", "models/random_forest", "rf");
 const trainISO = () => trainModel("/train/isolationforest", "iso_model", "iso");
 
-
 async function trainAutoencoder() {
   startLoading();
   try {
@@ -244,12 +255,7 @@ async function trainAutoencoder() {
     if (result.error) throw new Error(result.error);
 
     showToast(result.message || "Autoencoder training completed.");
-
-    document.getElementById("auto-accuracy").textContent = (result.accuracy * 100).toFixed(2) + "%";
-    document.getElementById("auto-precision").textContent = (result.precision * 100).toFixed(2) + "%";
-    document.getElementById("auto-recall").textContent = (result.recall * 100).toFixed(2) + "%";
-    document.getElementById("auto-f1").textContent = (result.f1_score * 100).toFixed(2) + "%";
-    document.getElementById("auto-anomaly-rate").textContent = (result.anomaly_rate * 100).toFixed(2) + "%";
+    updateMetrics(result, "auto");
   } catch (error) {
     console.error("Error training autoencoder:", error);
     showToast("Failed to train autoencoder.");
@@ -258,25 +264,30 @@ async function trainAutoencoder() {
   }
 }
 
+// ========================= Prediction Function =========================
+
+function renderPredictions(result) {
+  const output = document.getElementById("auto-output");
+  let predictions = Array.isArray(result.predictions) ? result.predictions : result;
+
+  if (Array.isArray(predictions) && predictions.length > 0) {
+    output.textContent = `Predictions (first 5):\n${JSON.stringify(predictions.slice(0, 5), null, 2)}`;
+  } else {
+    output.textContent = "No valid prediction results found.";
+  }
+}
 
 async function predictAutoencoder() {
   try {
     const res = await fetch("/predict/autoencoder/all");
     const result = await res.json();
-    const output = document.getElementById("auto-output");
-
-    if (Array.isArray(result) && result.length > 0) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.slice(0, 5), null, 2)}`;
-    } else if (Array.isArray(result.predictions) && result.predictions.length > 0) {
-      output.textContent = `Predictions (showing first 5):\n${JSON.stringify(result.predictions.slice(0, 5), null, 2)}`;
-    } else {
-      output.textContent = "No valid prediction results found.";
-    }
+    renderPredictions(result);
   } catch (error) {
     console.error("Error predicting with autoencoder:", error);
     document.getElementById("auto-output").textContent = "Failed to get predictions.";
   }
 }
+
 
 // ========== Evaluation Functions ==========
 async function evaluateModel(endpoint, resultId, modelName) {
