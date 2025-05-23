@@ -1,2 +1,3 @@
-creditcard.csv
-processed_data.npz
+*.csv
+*.npz
+*.pkl

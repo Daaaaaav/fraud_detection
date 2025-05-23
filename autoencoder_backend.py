@@ -89,7 +89,7 @@ def train_autoencoder():
     error_train = compute_reconstruction_error(X_train_scaled, reconstructed_train)
     features_train = augment_with_error(bottleneck_train, error_train)
 
-    smote = SMOTE(random_state=42)
+    smote = SMOTE(random_state=42) 
     features_resampled, y_resampled = smote.fit_resample(features_train, y_train)
 
     rf_clf = RandomForestClassifier(n_estimators=100, random_state=42)
